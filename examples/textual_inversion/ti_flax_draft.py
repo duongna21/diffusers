@@ -159,7 +159,7 @@ vae, state_vae = FlaxAutoencoderKL.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 )
 vae.params = state_vae
-# print('Loaded autoencoder sucessfully!')
+print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 # )
