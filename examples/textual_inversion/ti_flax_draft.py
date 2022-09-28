@@ -269,3 +269,9 @@ def resize_token_embeddings(model, new_num_tokens):
 print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
 resize_token_embeddings(text_encoder, len(tokenizer))
 print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
+
+print(placeholder_token_id, initializer_token_id)
+token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
+token_embeds[placeholder_token_id] = token_embeds[initializer_token_id]
+print(token_embeds[placeholder_token_id], '\n', token_embeds[initializer_token_id])
+
