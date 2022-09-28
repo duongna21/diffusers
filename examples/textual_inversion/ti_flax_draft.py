@@ -233,11 +233,11 @@ if len(token_ids) > 1:
 
 initializer_token_id = token_ids[0]
 placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
-#
-# text_encoder = FlaxCLIPTextModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-# )
-#
+
+text_encoder = FlaxCLIPTextModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
+
 # vae, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 # )
