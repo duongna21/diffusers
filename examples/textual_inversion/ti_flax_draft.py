@@ -164,7 +164,6 @@ unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 print('Loaded unet sucessfully!')
 
 from torchvision import transforms
-
 #@title Setup the dataset
 class TextualInversionDataset(Dataset):
     def __init__(
