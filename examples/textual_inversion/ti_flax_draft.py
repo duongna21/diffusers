@@ -275,3 +275,16 @@ token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding'
 token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
 print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
 
+train_dataset = TextualInversionDataset(
+      data_root=save_path,
+      tokenizer=tokenizer,
+      size=512,
+      placeholder_token=placeholder_token,
+      repeats=100,
+      learnable_property=what_to_teach, #Option selected above between object and style
+      center_crop=False,
+      set="train",
+)
+
+print(train_dataset)
+
