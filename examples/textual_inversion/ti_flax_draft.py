@@ -155,13 +155,15 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 #     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 # )
 # print('Loaded text encoder sucessfully!')
-# vae, state_vae = FlaxAutoencoderKL.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
-# )
+vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
+vae.params = state_vae
 # print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 # )
+# unet.params = state_unet
 # print('Loaded unet sucessfully!')
 
 from torchvision import transforms
@@ -373,5 +375,14 @@ logger.info(f"  Instantaneous batch size per device = {train_batch_size}")
 logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
 logger.info(f"  Total optimization steps = {max_train_steps}")
 
+progress_bar = tqdm(range(max_train_steps))
+progress_bar.set_description("Steps")
+global_step = 0
 
+
+for epoch in range(args.num_train_epochs):
+    for step, batch in enumerate(train_dataloader):
+        # Convert images to latent space
+        latents = vae.encode(batch["pixel_values"]).latent_dist.sample().detach()
+        latents = latents * 0.18215
 
