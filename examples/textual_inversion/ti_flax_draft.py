@@ -3,21 +3,21 @@ import argparse
 import itertools
 import math
 import os
-import random
-from pathlib import Path
-from typing import Optional
-
-import numpy as np
-import torch
-import torch.nn.functional as F
-import torch.utils.checkpoint
-from torch.utils.data import Dataset
-
-import PIL
-from diffusers import FlaxAutoencoderKL, FlaxDDPMScheduler, FlaxPNDMScheduler, FlaxStableDiffusionPipeline, FlaxUNet2DConditionModel
-from diffusers.optimization import get_scheduler
-from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from huggingface_hub import HfFolder, Repository, whoami
+# import random
+# from pathlib import Path
+# from typing import Optional
+#
+# import numpy as np
+# import torch
+# import torch.nn.functional as F
+# import torch.utils.checkpoint
+# from torch.utils.data import Dataset
+#
+# import PIL
+# from diffusers import FlaxAutoencoderKL, FlaxDDPMScheduler, FlaxPNDMScheduler, FlaxStableDiffusionPipeline, FlaxUNet2DConditionModel
+# from diffusers.optimization import get_scheduler
+# from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+# from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
