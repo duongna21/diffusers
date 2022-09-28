@@ -308,10 +308,9 @@ train_batch_size = hyperparameters['train_batch_size']
 train_dataloader = create_dataloader(train_batch_size)
 # print(next(iter(train_dataloader)))
 
-num_processes = jax.device_count()
 if scale_lr:
     learning_rate = (
-        learning_rate * train_batch_size * num_processes
+        learning_rate * train_batch_size * jax.local_device_count()
     )
 
 # lr_scheduler = get_scheduler(
@@ -368,12 +367,12 @@ num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
 
 total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
-logger.info("***** Running training *****")
-logger.info(f"  Num examples = {len(train_dataset)}")
-logger.info(f"  Num Epochs = {num_train_epochs}")
-logger.info(f"  Instantaneous batch size per device = {train_batch_size}")
-logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-logger.info(f"  Total optimization steps = {max_train_steps}")
+print("***** Running training *****")
+print(f"  Num examples = {len(train_dataset)}")
+print(f"  Num Epochs = {num_train_epochs}")
+print(f"  Instantaneous batch size per device = {train_batch_size}")
+print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+print(f"  Total optimization steps = {max_train_steps}")
 
 progress_bar = tqdm(range(max_train_steps))
 progress_bar.set_description("Steps")
@@ -383,6 +382,8 @@ global_step = 0
 for epoch in range(args.num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
-        latents = vae.encode(batch["pixel_values"]).latent_dist.sample().detach()
+        def encode(self, sample, deterministic: bool = True, return_dict: bool = True):
+        latents = vae.encode(batch["pixel_values"]).latent_dist.sample(rng)
         latents = latents * 0.18215
+        print(latents.shape)
 
