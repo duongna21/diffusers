@@ -19,7 +19,6 @@ from diffusers.optimization import get_scheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
-# from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer
 
@@ -124,6 +123,48 @@ imagenet_style_templates_small = [
     "a large painting in the style of {}",
 ]
 
+
+#@title Load the tokenizer and add the placeholder token as a additional special token.
+#@markdown Please read and if you agree accept the LICENSE [here](https://huggingface.co/CompVis/stable-diffusion-v1-4) if you see an error
+tokenizer = CLIPTokenizer.from_pretrained(
+    pretrained_model_name_or_path,
+    subfolder="tokenizer",
+    use_auth_token=True,
+)
+
+# Add the placeholder token in tokenizer
+num_added_tokens = tokenizer.add_tokens(placeholder_token)
+if num_added_tokens == 0:
+    raise ValueError(
+        f"The tokenizer already contains the token {placeholder_token}. Please pass a different"
+        " `placeholder_token` that is not already in the tokenizer."
+    )
+
+#@title Get token ids for our placeholder and initializer token. This code block will complain if initializer string is not a single token
+# Convert the initializer_token, placeholder_token to ids
+token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
+# Check if initializer_token is a single token or a sequence of tokens
+if len(token_ids) > 1:
+    raise ValueError("The initializer token must be a single token.")
+
+initializer_token_id = token_ids[0]
+placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
+
+text_encoder = FlaxCLIPTextModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
+print('Loaded text encoder sucessfully!')
+vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
+print('Loaded autoencoder sucessfully!')
+unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+)
+print('Loaded unet sucessfully!')
+
+from torchvision import transforms
+
 #@title Setup the dataset
 class TextualInversionDataset(Dataset):
     def __init__(
@@ -207,42 +248,3 @@ class TextualInversionDataset(Dataset):
 
         example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
         return example
-
-#@title Load the tokenizer and add the placeholder token as a additional special token.
-#@markdown Please read and if you agree accept the LICENSE [here](https://huggingface.co/CompVis/stable-diffusion-v1-4) if you see an error
-tokenizer = CLIPTokenizer.from_pretrained(
-    pretrained_model_name_or_path,
-    subfolder="tokenizer",
-    use_auth_token=True,
-)
-
-# Add the placeholder token in tokenizer
-num_added_tokens = tokenizer.add_tokens(placeholder_token)
-if num_added_tokens == 0:
-    raise ValueError(
-        f"The tokenizer already contains the token {placeholder_token}. Please pass a different"
-        " `placeholder_token` that is not already in the tokenizer."
-    )
-
-#@title Get token ids for our placeholder and initializer token. This code block will complain if initializer string is not a single token
-# Convert the initializer_token, placeholder_token to ids
-token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
-# Check if initializer_token is a single token or a sequence of tokens
-if len(token_ids) > 1:
-    raise ValueError("The initializer token must be a single token.")
-
-initializer_token_id = token_ids[0]
-placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
-
-text_encoder = FlaxCLIPTextModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-)
-print('Loaded text encoder sucessfully!')
-vae, state_vae = FlaxAutoencoderKL.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
-)
-print('Loaded autoencoder sucessfully!')
-unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
-)
-print('Loaded unet sucessfully!')
