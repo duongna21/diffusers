@@ -307,10 +307,11 @@ train_batch_size = hyperparameters['train_batch_size']
 
 train_dataloader = create_dataloader(train_batch_size)
 # print(next(iter(train_dataloader)))
+num_processes = jax.local_device_count()
 
 if scale_lr:
     learning_rate = (
-        learning_rate * train_batch_size * jax.local_device_count()
+        learning_rate * train_batch_size * num_processes
     )
 
 # lr_scheduler = get_scheduler(
@@ -365,7 +366,7 @@ max_train_steps = 3000
 # Afterwards we recalculate our number of training epochs
 num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
 
-total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+total_batch_size = train_batch_size * num_processes
 
 print("***** Running training *****")
 print(f"  Num examples = {len(train_dataset)}")
@@ -379,7 +380,7 @@ progress_bar.set_description("Steps")
 global_step = 0
 
 
-for epoch in range(args.num_train_epochs):
+for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
         latents = vae.encode(batch["pixel_values"]).latent_dist.sample(rng)
