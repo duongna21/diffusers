@@ -302,7 +302,7 @@ hyperparameters = {
 }
 train_batch_size = hyperparameters["train_batch_size"]
 train_dataloader = create_dataloader(train_batch_size)
-print(next(train_dataloader))
+print(next(iter(train_dataloader)))
 
 
 
