@@ -48,7 +48,7 @@ class FlaxUNet2DConditionModel(nn.Module, FlaxModelMixin, ConfigMixin):
     - [Automatic Differentiation](https://jax.readthedocs.io/en/latest/jax.html#automatic-differentiation)
     - [Vectorization](https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap)
     - [Parallelization](https://jax.readthedocs.io/en/latest/jax.html#parallelization-pmap)
-
+FlaxUNet2DConditionModel
     Parameters:
         sample_size (`int`, *optional*):
             The size of the input sample.
