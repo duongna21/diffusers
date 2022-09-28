@@ -354,6 +354,24 @@ optimizer = optax.adamw(
     mask=decay_mask_fn,
 )
 
+# Keep vae and unet in eval model as we don't train these
+# vae.eval()
+# unet.eval()
+# train=False
+
+num_update_steps_per_epoch = math.ceil(len(train_dataloader))
+max_train_steps = 3000
+# Afterwards we recalculate our number of training epochs
+num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
+
+total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+
+logger.info("***** Running training *****")
+logger.info(f"  Num examples = {len(train_dataset)}")
+logger.info(f"  Num Epochs = {num_train_epochs}")
+logger.info(f"  Instantaneous batch size per device = {train_batch_size}")
+logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+logger.info(f"  Total optimization steps = {max_train_steps}")
 
 
 
