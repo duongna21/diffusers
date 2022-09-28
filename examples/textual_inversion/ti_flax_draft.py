@@ -382,7 +382,6 @@ global_step = 0
 for epoch in range(args.num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
-        def encode(self, sample, deterministic: bool = True, return_dict: bool = True):
         latents = vae.encode(batch["pixel_values"]).latent_dist.sample(rng)
         latents = latents * 0.18215
         print(latents.shape)
