@@ -1,5 +1,5 @@
 import os
-from torchvision import transforms
+# from torchvision import transforms
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer
 pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
 
