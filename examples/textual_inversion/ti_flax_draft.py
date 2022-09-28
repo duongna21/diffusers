@@ -18,21 +18,21 @@ import os
 # from diffusers.optimization import get_scheduler
 # from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 # from huggingface_hub import HfFolder, Repository, whoami
-from PIL import Image
-from torchvision import transforms
-from tqdm.auto import tqdm
+# from PIL import Image
+# from torchvision import transforms
+# from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer
 
-# def image_grid(imgs, rows, cols):
-#     assert len(imgs) == rows*cols
-#
-#     w, h = imgs[0].size
-#     grid = Image.new('RGB', size=(cols*w, rows*h))
-#     grid_w, grid_h = grid.size
-#
-#     for i, img in enumerate(imgs):
-#         grid.paste(img, box=(i%cols*w, i//cols*h))
-#     return grid
+def image_grid(imgs, rows, cols):
+    assert len(imgs) == rows*cols
+
+    w, h = imgs[0].size
+    grid = Image.new('RGB', size=(cols*w, rows*h))
+    grid_w, grid_h = grid.size
+
+    for i, img in enumerate(imgs):
+        grid.paste(img, box=(i%cols*w, i//cols*h))
+    return grid
 
 pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
 #
