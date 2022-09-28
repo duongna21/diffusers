@@ -288,3 +288,21 @@ train_dataset = TextualInversionDataset(
 
 print('len(train_dataset): ', len(train_dataset))
 
+def create_dataloader(train_batch_size=1):
+    return torch.utils.data.DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
+
+hyperparameters = {
+    "learning_rate": 5e-04,
+    "scale_lr": True,
+    "max_train_steps": 3000,
+    "train_batch_size": 2,
+    "gradient_accumulation_steps": 1,
+    "seed": 42,
+    "output_dir": "sd-concept-output"
+}
+train_batch_size = hyperparameters["train_batch_size"]
+train_dataloader = create_dataloader(train_batch_size)
+print(next(train_dataloader))
+
+
+
