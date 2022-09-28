@@ -273,5 +273,5 @@ print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedd
 print(placeholder_token_id, initializer_token_id)
 token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
 token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
-print(token_embeds[placeholder_token_id], '\n', token_embeds[initializer_token_id])
+print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
 
