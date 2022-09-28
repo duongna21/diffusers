@@ -151,10 +151,10 @@ if len(token_ids) > 1:
 initializer_token_id = token_ids[0]
 placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 
-text_encoder = FlaxCLIPTextModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-)
-print('Loaded text encoder sucessfully!')
+# text_encoder = FlaxCLIPTextModel.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+# )
+# print('Loaded text encoder sucessfully!')
 # vae, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 # )
@@ -266,14 +266,14 @@ def resize_token_embeddings(model, new_num_tokens):
     params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
     model.params = params
 
-print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
-resize_token_embeddings(text_encoder, len(tokenizer))
-print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
-
-print(placeholder_token_id, initializer_token_id)
-token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
-token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
-print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
+# print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
+# resize_token_embeddings(text_encoder, len(tokenizer))
+# print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
+#
+# print(placeholder_token_id, initializer_token_id)
+# token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
+# token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
+# print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
 
 train_dataset = TextualInversionDataset(
       data_root=save_path,
