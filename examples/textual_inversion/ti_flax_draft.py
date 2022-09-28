@@ -296,13 +296,62 @@ hyperparameters = {
     "scale_lr": True,
     "max_train_steps": 3000,
     "train_batch_size": 2,
-    "gradient_accumulation_steps": 1,
     "seed": 42,
     "output_dir": "sd-concept-output"
 }
-train_batch_size = hyperparameters["train_batch_size"]
+learning_rate = hyperparameters['learning_rate']
+scale_lr = hyperparameters['scale_lr']
+train_batch_size = hyperparameters['train_batch_size']
+
 train_dataloader = create_dataloader(train_batch_size)
-print(next(iter(train_dataloader)))
+# print(next(iter(train_dataloader)))
+
+num_processes = jax.device_count()
+if scale_lr:
+    learning_rate = (
+        learning_rate * train_batch_size * num_processes
+    )
+
+lr_scheduler = get_scheduler(
+    args.lr_scheduler,
+    optimizer=optimizer,
+    num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
+    num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+)
+
+constant_scheduler = optax.constant_schedule(0.0001)
+optimizer = optax.sgd(learning_rate=constant_scheduler)
+
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_epsilon = 1e-8
+weight_decay = 1e-2
+
+from flax import jax_utils, traverse_util
+def decay_mask_fn(params):
+    flat_params = traverse_util.flatten_dict(params)
+    # find out all LayerNorm parameters
+    layer_norm_candidates = ["layernorm", "layer_norm", "ln"]
+    layer_norm_named_params = set(
+        [
+            layer[-2:]
+            for layer_norm_name in layer_norm_candidates
+            for layer in flat_params.keys()
+            if layer_norm_name in "".join(layer).lower()
+        ]
+    )
+    flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
+    return traverse_util.unflatten_dict(flat_mask)
+
+optimizer = optax.adamw(
+    learning_rate=constant_scheduler,
+    b1=adam_beta1,
+    b2=adam_beta2,
+    eps=adam_epsilon,
+    weight_decay=weight_decay,
+    mask=decay_mask_fn,
+)
+
 
 
 
