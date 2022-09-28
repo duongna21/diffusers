@@ -319,6 +319,8 @@ if scale_lr:
 #     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
 # )
 
+import optax
+
 constant_scheduler = optax.constant_schedule(0.0001)
 optimizer = optax.sgd(learning_rate=constant_scheduler)
 
