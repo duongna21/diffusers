@@ -225,13 +225,7 @@ if num_added_tokens == 0:
     )
 
 #@title Get token ids for our placeholder and initializer token. This code block will complain if initializer string is not a single token
-# Convert the initializer_token, placeholder_token to idstate_vae = FlaxAutoencoderKL.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
-# )
-#
-# unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
-# )
+# Convert the initializer_token, placeholder_token to ids
 token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
 # Check if initializer_token is a single token or a sequence of tokens
 if len(token_ids) > 1:
@@ -243,5 +237,12 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 text_encoder = FlaxCLIPTextModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 )
-
-vae, s
+print('Loaded text encoder sucessfully!')
+vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
+print('Loaded autoencoder sucessfully!')
+unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+)
+print('Loaded unet sucessfully!')
