@@ -286,5 +286,5 @@ train_dataset = TextualInversionDataset(
       set="train",
 )
 
-print(train_dataset)
+print('len(train_dataset): ', len(train_dataset))
 
