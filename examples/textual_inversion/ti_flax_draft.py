@@ -312,12 +312,12 @@ if scale_lr:
         learning_rate * train_batch_size * num_processes
     )
 
-lr_scheduler = get_scheduler(
-    args.lr_scheduler,
-    optimizer=optimizer,
-    num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
-    num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
-)
+# lr_scheduler = get_scheduler(
+#     args.lr_scheduler,
+#     optimizer=optimizer,
+#     num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
+#     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+# )
 
 constant_scheduler = optax.constant_schedule(0.0001)
 optimizer = optax.sgd(learning_rate=constant_scheduler)
