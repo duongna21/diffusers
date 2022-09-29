@@ -392,13 +392,14 @@ global_step = 0
 # def train_step(state, batch, z_rng):
 #     @jax.jit
 
+vae_init = vae()
 # @jax.jit
 def eval_vae(params, images, rng):
     def eval_model(vae):
         latents = vae.encode(images).latent_dist.sample(rng)
         return latents
 
-    return nn.apply(eval_model, vae())({'params': params})
+    return nn.apply(eval_model, vae_init)({'params': params})
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
