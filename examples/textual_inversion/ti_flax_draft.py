@@ -307,7 +307,7 @@ hyperparameters = {
     "learning_rate": 5e-04,
     "scale_lr": True,
     "max_train_steps": 3000,
-    "train_batch_size": 2,
+    "train_batch_size": 4,
     "seed": 42,
     "output_dir": "sd-concept-output"
 }
