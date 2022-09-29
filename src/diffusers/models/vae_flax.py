@@ -770,6 +770,7 @@ class FlaxAutoencoderKL(nn.Module, FlaxModelMixin, ConfigMixin):
 
         return self.init(rngs, sample)["params"]
 
+
     def __call__(self, sample, deterministic: bool = True, return_dict: bool = True):
         sample = jnp.transpose(sample, (0, 2, 3, 1))
 
