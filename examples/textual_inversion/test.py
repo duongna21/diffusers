@@ -1,5 +1,5 @@
 import os
-from diffusers import FlaxAutoencoderKL
+from diffusers import FlaxAutoencoderKL, FlaxUNet2DConditionModel
 
 
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer, CLIPTextModel
@@ -13,6 +13,9 @@ pt_text_encoder = CLIPTextModel.from_pretrained(
 
 text_encoder = FlaxCLIPTextModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
+unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 )
 from torchvision import transforms
 from flax.core.frozen_dict import unfreeze, freeze
