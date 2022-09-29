@@ -421,7 +421,7 @@ for epoch in range(num_train_epochs):
         # Sample a random timestep for each image
         timesteps = np.random.randint(
             0, noise_scheduler.config.num_train_timesteps, (bsz,)
-        ).astype(int)
+        )#.astype(int)
         print(timesteps)
 
 
