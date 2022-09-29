@@ -411,7 +411,7 @@ for epoch in range(num_train_epochs):
         # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
         # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         # latents = nn.apply(eval_model, model())({'params': params})
-        latents = eval(state_vae, batch["pixel_values"], rng)
+        latents = eval_vae(state_vae, batch["pixel_values"], rng)
         latents = latents * 0.18215
         print(latents.shape)
 
