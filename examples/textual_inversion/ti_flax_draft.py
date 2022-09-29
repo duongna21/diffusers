@@ -435,6 +435,9 @@ for epoch in range(num_train_epochs):
         encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
+        # Predict the noise residual
+        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+        print('noise_pred shape: ', noise_pred.shape)
 
 
 
