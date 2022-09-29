@@ -416,7 +416,6 @@ for epoch in range(num_train_epochs):
         # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
         latents = vae_outputs.latent_dist.sample(rng)
-        latents = jnp.transpose(latents, (0, 3, 1, 2))
         latents = latents * 0.18215
         print('latents shape: ', latents.shape)
 
@@ -439,8 +438,9 @@ for epoch in range(num_train_epochs):
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
+        noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
         unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
-        noise_pred = unet_outputs.sample
+        noise_pred = unet_outputs.
         # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
 
