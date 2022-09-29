@@ -440,7 +440,7 @@ for epoch in range(num_train_epochs):
         # Predict the noise residual
         noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
         unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
-        noise_pred = unet_outputs.
+        noise_pred = unet_outputs.sample
         # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
 
