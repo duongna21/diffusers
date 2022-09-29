@@ -400,7 +400,7 @@ def eval_vae(params, images, rng):
         # generate_images = generate_images.reshape(-1, 28, 28, 1)
         # metrics = compute_metrics(recon_images, images, mean, logvar)
         # return metrics, comparison, generate_images
-        latents = vae.encode(jnp.array(images).latent_dist.sample(rng))
+        latents = vae.encode(np.array(images).latent_dist.sample(rng))
         return latents
 
     return nn.apply(eval_model, vae())({'params': params})
