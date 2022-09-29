@@ -403,7 +403,7 @@ global_step = 0
 from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
-print(state)
+# print(state)
 # @jax.jit
 # def train_step(state, batch, z_rng):
 #     vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
@@ -450,7 +450,7 @@ for epoch in range(num_train_epochs):
 
         # Predict the noise residual
         noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
-        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, deterministic=True)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
         noise_pred = unet_outputs.sample
         # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
