@@ -158,12 +158,12 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 #     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 # )
 # print('Loaded text encoder sucessfully!')
-_, state_vae = FlaxAutoencoderKL.from_pretrained(
-    pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
-)
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+#     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
+_, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
 # vae.params = state_vae
 def vae():
     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
