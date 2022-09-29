@@ -394,11 +394,11 @@ global_step = 0
 # Setup train state
 state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
 
-    # Define gradient update step fn
-    def train_step(state, batch, dropout_rng):
-        dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
-
-        def loss_fn(params):
+# Define gradient update step fn
+# def train_step(state, batch, dropout_rng):
+    # dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+    #
+    # def loss_fn(params):
 
 from flax.training import train_state
 # Setup train state
