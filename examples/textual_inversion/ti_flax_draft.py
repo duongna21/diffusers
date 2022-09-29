@@ -10,6 +10,7 @@ from typing import Optional
 import numpy as np
 import jax
 import jax.numpy as jnp
+import flax.linen as nn
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -156,10 +157,14 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 #     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 # )
 # print('Loaded text encoder sucessfully!')
-vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+
+_, state_vae = FlaxAutoencoderKL.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 )
-vae.params = state_vae
+# vae.params = state_vae
+def vae():
+    return FlaxAutoencoderKL()
+
 print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
@@ -380,11 +385,32 @@ progress_bar = tqdm(range(max_train_steps))
 progress_bar.set_description("Steps")
 global_step = 0
 
+@jax.jit
+# def train_step(state, batch, z_rng):
+#     @jax.jit
 
+@jax.jit
+def eval_vae(params, images, rng):
+    def eval_model(vae):
+        # recon_images, mean, logvar = vae(images, z_rng)
+        # comparison = jnp.concatenate([images[:8].reshape(-1, 28, 28, 1),
+        #                               recon_images[:8].reshape(-1, 28, 28, 1)])
+        #
+        # generate_images = vae.generate(z)
+        # generate_images = generate_images.reshape(-1, 28, 28, 1)
+        # metrics = compute_metrics(recon_images, images, mean, logvar)
+        # return metrics, comparison, generate_images
+        latents = vae.encode(jnp.array(images).latent_dist.sample(rng)
+        return latents
+
+    return nn.apply(eval_model, vae())({'params': params})
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
-        latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
+        # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
+        # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
+        # latents = nn.apply(eval_model, model())({'params': params})
+        latents = eval(state_vae, jnp.array(batch["pixel_values"]), rng)
         latents = latents * 0.18215
         print(latents.shape)
 
