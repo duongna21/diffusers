@@ -453,8 +453,12 @@ noise_scheduler = FlaxDDPMScheduler(
     beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
 )
 
+from jax.tree_util import tree_map
+
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
+        batch = tree_map(lambda x: x.numpy(), batch)
+
         train_step(state, batch, rng)
 
         # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
