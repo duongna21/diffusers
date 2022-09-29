@@ -403,14 +403,44 @@ global_step = 0
 from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
-# print(state)
-# @jax.jit
-# def train_step(state, batch, z_rng):
-#     vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
-#     latents = vae_outputs.latent_dist.sample(rng)
-#     latents = latents * 0.18215
 
-# vae_init = vae()
+@jax.jit
+def train_step(state, batch, rng):
+    def loss_fn(params):
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), train=False, method=vae.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
+        latents = latents * 0.18215
+        print('latents shape: ', latents.shape)
+
+        # Sample noise that we'll add to the latents
+        noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
+        bsz = latents.shape[0]
+        # Sample a random timestep for each image
+        timesteps = jax.random.randint(
+            rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+        )
+        print('timesteps: ', timesteps)
+
+        # Add noise to the latents according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        print('noisy_latents shape: ', noisy_latents.shape)
+
+        # Get the text embedding for conditioning
+        # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
+        encoder_hidden_states = state.apply_fn(batch["input_ids"].numpy(), params=params, dropout_rng=rng, train=True)[0]
+        print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+
+        # Predict the noise residual
+        noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        noise_pred = unet_outputs.sample
+        # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
+        print('noise_pred shape: ', noise_pred.shape)
+
+
+
+
 # @jax.jit
 # def eval_vae(params, images, rng):
 #     def eval_model(vae):
@@ -425,37 +455,39 @@ noise_scheduler = FlaxDDPMScheduler(
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
-        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
-        latents = vae_outputs.latent_dist.sample(rng)
-        latents = latents * 0.18215
-        print('latents shape: ', latents.shape)
+        train_step(state, batch, rng)
 
-        # Sample noise that we'll add to the latents
-        noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
-        bsz = latents.shape[0]
-        # Sample a random timestep for each image
-        timesteps = jax.random.randint(
-            rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
-        )
-        print('timesteps: ', timesteps)
-
-        # Add noise to the latents according to the noise magnitude at each timestep
-        # (this is the forward diffusion process)
-        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-        print('noisy_latents shape: ', noisy_latents.shape)
-
-        # Get the text embedding for conditioning
-        encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
-        print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
-
-        # Predict the noise residual
-        noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
-        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
-        noise_pred = unet_outputs.sample
-        # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
-        print('noise_pred shape: ', noise_pred.shape)
-
-        # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
+        # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
+        # latents = vae_outputs.latent_dist.sample(rng)
+        # latents = latents * 0.18215
+        # print('latents shape: ', latents.shape)
+        #
+        # # Sample noise that we'll add to the latents
+        # noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
+        # bsz = latents.shape[0]
+        # # Sample a random timestep for each image
+        # timesteps = jax.random.randint(
+        #     rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+        # )
+        # print('timesteps: ', timesteps)
+        #
+        # # Add noise to the latents according to the noise magnitude at each timestep
+        # # (this is the forward diffusion process)
+        # noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        # print('noisy_latents shape: ', noisy_latents.shape)
+        #
+        # # Get the text embedding for conditioning
+        # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
+        # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+        #
+        # # Predict the noise residual
+        # noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
+        # unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        # noise_pred = unet_outputs.sample
+        # # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
+        # print('noise_pred shape: ', noise_pred.shape)
+        #
+        # # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
 
 
 
