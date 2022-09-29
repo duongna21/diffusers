@@ -154,10 +154,10 @@ if len(token_ids) > 1:
 initializer_token_id = token_ids[0]
 placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 
-# text_encoder = FlaxCLIPTextModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-# )
-# print('Loaded text encoder sucessfully!')
+text_encoder, state_text_encoder = FlaxCLIPTextModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
+print('Loaded text encoder sucessfully!')
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
@@ -430,5 +430,11 @@ for epoch in range(num_train_epochs):
         # (this is the forward diffusion process)
         noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
         print(noisy_latents.shape)
+
+        # Get the text embedding for conditioning
+        encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+
+
+
 
 
