@@ -163,7 +163,7 @@ _, state_vae = FlaxAutoencoderKL.from_pretrained(
 )
 # vae.params = state_vae
 def vae():
-    return FlaxAutoencoderKL()
+    return FlaxAutoencoderKL(block_out_channels=(128, 256, 512, 512))
 
 print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
