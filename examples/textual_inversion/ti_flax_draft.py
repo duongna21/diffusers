@@ -174,7 +174,7 @@ _, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 )
 # unet.params = state_unet
 unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
-# print('Loaded unet sucessfully!')
+print('Loaded unet sucessfully!')
 
 from torchvision import transforms
 #@title Setup the dataset
@@ -415,6 +415,7 @@ for epoch in range(num_train_epochs):
         # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
         latents = vae_outputs.latent_dist.sample(rng)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))
         latents = latents * 0.18215
         print('latents shape: ', latents.shape)
 

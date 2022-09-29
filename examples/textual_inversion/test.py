@@ -7,13 +7,13 @@ pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
 # vae, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 # )
-pt_text_encoder = CLIPTextModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True
-)
-
-text_encoder = FlaxCLIPTextModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-)
+# pt_text_encoder = CLIPTextModel.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True
+# )
+#
+# text_encoder = FlaxCLIPTextModel.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+# )
 unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 )
