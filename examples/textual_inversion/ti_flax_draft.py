@@ -37,6 +37,7 @@ def image_grid(imgs, rows, cols):
     return grid
 
 pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
+pretrained_model_name_or_path = "CompVis/stable-diffusion-v1-4" #@param {type:"string"}
 
 #@markdown Add here the URLs to the images of the concept you are adding. 3-5 should be fine
 urls = [
@@ -157,13 +158,15 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 #     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 # )
 # print('Loaded text encoder sucessfully!')
-
 _, state_vae = FlaxAutoencoderKL.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+    pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 )
+# _, state_vae = FlaxAutoencoderKL.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+# )
 # vae.params = state_vae
 def vae():
-    return FlaxAutoencoderKL(block_out_channels=(128, 256, 512, 512))
+    return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 
 print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
