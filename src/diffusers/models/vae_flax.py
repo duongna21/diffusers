@@ -802,7 +802,17 @@ class FlaxAutoencoderKL(nn.Module, FlaxModelMixin, ConfigMixin):
 
         return self.init(rngs, sample)["params"]
 
+    def encode(self, sample, deterministic: bool = True, return_dict: bool = True):
+        sample = jnp.transpose(sample, (0, 2, 3, 1))
 
+        hidden_states = self.encoder(sample, deterministic=deterministic)
+        moments = self.quant_conv(hidden_states)
+        posterior = FlaxDiagonalGaussianDistribution(moments)
+
+        if not return_dict:
+            return (posterior,)
+
+        return FlaxAutoencoderKLOutput(latent_dist=posterior)
 
     def decode(self, latents, deterministic: bool = True, return_dict: bool = True):
         if latents.shape[-1] != self.config.latent_channels:
@@ -818,29 +828,17 @@ class FlaxAutoencoderKL(nn.Module, FlaxModelMixin, ConfigMixin):
 
         return FlaxDecoderOutput(sample=hidden_states)
 
-    def __call__(self, sample, deterministic: bool = True, return_dict: bool = True):
-        sample = jnp.transpose(sample, (0, 2, 3, 1))
+    def __call__(self, sample, sample_posterior=False, deterministic: bool = True, return_dict: bool = True):
+        posterior = self.encode(sample, deterministic=deterministic, return_dict=return_dict)
+        if sample_posterior:
+            rng = self.make_rng("gaussian")
+            hidden_states = posterior.latent_dist.sample(rng)
+        else:
+            hidden_states = posterior.latent_dist.mode()
 
-        hidden_states = self.encoder(sample, deterministic=deterministic)
-        moments = self.quant_conv(hidden_states)
-        posterior = FlaxDiagonalGaussianDistribution(moments)
+        sample = self.decode(hidden_states, return_dict=return_dict).sample
 
         if not return_dict:
-            return (posterior,)
+            return (sample,)
 
-        return FlaxAutoencoderKLOutput(latent_dist=posterior)
-
-    # def __call__(self, sample, sample_posterior=False, deterministic: bool = True, return_dict: bool = True):
-    #     posterior = self.encode(sample, deterministic=deterministic, return_dict=return_dict)
-    #     if sample_posterior:
-    #         rng = self.make_rng("gaussian")
-    #         hidden_states = posterior.latent_dist.sample(rng)
-    #     else:
-    #         hidden_states = posterior.latent_dist.mode()
-    #
-    #     sample = self.decode(hidden_states, return_dict=return_dict).sample
-    #
-    #     if not return_dict:
-    #         return (sample,)
-    #
-    #     return FlaxDecoderOutput(sample=sample)
+        return FlaxDecoderOutput(sample=sample)
