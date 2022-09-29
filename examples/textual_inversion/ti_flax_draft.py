@@ -409,7 +409,9 @@ def train_step(state, batch, rng):
     def loss_fn(params):
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
         latents = vae_outputs.latent_dist.sample(rng)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
         latents = latents * 0.18215
+
         print('latents shape: ', latents.shape)
 
         # Sample noise that we'll add to the latents
@@ -431,7 +433,7 @@ def train_step(state, batch, rng):
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
-        noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        # noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
         unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
         noise_pred = unet_outputs.sample
         print('noise_pred shape: ', noise_pred.shape)
