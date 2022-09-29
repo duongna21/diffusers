@@ -37,7 +37,7 @@ def image_grid(imgs, rows, cols):
     return grid
 
 pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
-pretrained_model_name_or_path = "CompVis/stable-diffusion-v1-4" #@param {type:"string"}
+# pretrained_model_name_or_path = "CompVis/stable-diffusion-v1-4" #@param {type:"string"}
 
 #@markdown Add here the URLs to the images of the concept you are adding. 3-5 should be fine
 urls = [
