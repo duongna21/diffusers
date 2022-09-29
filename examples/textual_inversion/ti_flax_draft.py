@@ -433,6 +433,7 @@ for epoch in range(num_train_epochs):
 
         # Get the text embedding for conditioning
         encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+        print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
 
 
