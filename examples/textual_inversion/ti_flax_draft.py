@@ -17,6 +17,7 @@ import torch.utils.checkpoint
 from torch.utils.data import Dataset
 
 import PIL
+from ...models import FlaxUNet2DConditionModel
 from diffusers import FlaxAutoencoderKL, FlaxDDPMScheduler, FlaxPNDMScheduler, FlaxStableDiffusionPipeline, FlaxUNet2DConditionModel
 from diffusers.optimization import get_scheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
