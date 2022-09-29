@@ -172,7 +172,7 @@ print('Loaded autoencoder sucessfully!')
 unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 )
-# unet.params = state_unet
+unet.params = state_unet
 # print('Loaded unet sucessfully!')
 
 from torchvision import transforms
@@ -436,7 +436,7 @@ for epoch in range(num_train_epochs):
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
-        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, params=state_unet, train=False).sample
+        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
 
 
