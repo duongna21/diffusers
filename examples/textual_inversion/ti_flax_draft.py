@@ -416,7 +416,7 @@ for epoch in range(num_train_epochs):
         print(latents.shape)
 
         # Sample noise that we'll add to the latents
-        noise = jnp.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
+        noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
         bsz = latents.shape[0]
         # Sample a random timestep for each image
         timesteps = np.randint(
