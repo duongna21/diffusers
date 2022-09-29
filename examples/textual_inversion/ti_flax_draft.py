@@ -392,7 +392,7 @@ progress_bar.set_description("Steps")
 global_step = 0
 
 # Setup train state
-state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
+# state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
 
 # Define gradient update step fn
 # def train_step(state, batch, dropout_rng):
