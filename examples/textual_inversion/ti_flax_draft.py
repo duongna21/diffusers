@@ -257,7 +257,7 @@ class TextualInversionDataset(Dataset):
         example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
         return example
 
-
+rng = jax.random.PRNGKey(10)
 def resize_token_embeddings(model, new_num_tokens):
     if model.config.vocab_size == new_num_tokens or new_num_tokens is None:
         return
@@ -268,7 +268,7 @@ def resize_token_embeddings(model, new_num_tokens):
     old_num_tokens, emb_dim = old_embeddings.shape
 
     initializer = jax.nn.initializers.normal()
-    rng = jax.random.PRNGKey(10)
+
     new_embeddings = initializer(rng, (new_num_tokens, emb_dim))
     new_embeddings = new_embeddings.at[:old_num_tokens].set(old_embeddings)
     params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
