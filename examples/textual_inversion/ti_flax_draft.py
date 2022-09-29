@@ -158,6 +158,7 @@ text_encoder = FlaxCLIPTextModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 )
 print('Loaded text encoder sucessfully!')
+
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
@@ -390,9 +391,24 @@ progress_bar = tqdm(range(max_train_steps))
 progress_bar.set_description("Steps")
 global_step = 0
 
+# Setup train state
+state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
+
+    # Define gradient update step fn
+    def train_step(state, batch, dropout_rng):
+        dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+
+        def loss_fn(params):
+
+from flax.training import train_state
+# Setup train state
+state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
+print(state)
 # @jax.jit
 # def train_step(state, batch, z_rng):
-#     @jax.jit
+#     vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
+#     latents = vae_outputs.latent_dist.sample(rng)
+#     latents = latents * 0.18215
 
 # vae_init = vae()
 # @jax.jit
@@ -409,12 +425,7 @@ noise_scheduler = FlaxDDPMScheduler(
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
-        # Convert images to latent space
-        # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
-        # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
-        # latents = nn.apply(eval_model, model())({'params': params})
-        # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
-        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode, train=False)
         latents = vae_outputs.latent_dist.sample(rng)
         latents = latents * 0.18215
         print('latents shape: ', latents.shape)
@@ -434,12 +445,12 @@ for epoch in range(num_train_epochs):
         print('noisy_latents shape: ', noisy_latents.shape)
 
         # Get the text embedding for conditioning
-        encoder_hidden_states = text_encoder(batch["input_ids"].numpy(), train=False)[0]
+        encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
         noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
-        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
         noise_pred = unet_outputs.sample
         # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
