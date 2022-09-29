@@ -388,12 +388,12 @@ progress_bar = tqdm(range(max_train_steps))
 progress_bar.set_description("Steps")
 global_step = 0
 
-@jax.jit
+# @jax.jit
 # def train_step(state, batch, z_rng):
 #     @jax.jit
 
 vae_init = vae()
-# @jax.jit
+@jax.jit
 def eval_vae(params, images, rng):
     def eval_model(vae):
         latents = vae.encode(images).latent_dist.sample(rng)
