@@ -392,7 +392,7 @@ global_step = 0
 # def train_step(state, batch, z_rng):
 #     @jax.jit
 
-@jax.jit
+# @jax.jit
 def eval_vae(params, images, rng):
     def eval_model(vae):
         latents = vae.encode(images).latent_dist.sample(rng)
