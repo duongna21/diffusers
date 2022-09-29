@@ -428,7 +428,7 @@ def train_step(state, batch, rng):
 
     # Get the text embedding for conditioning
     # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
-    encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
+    encoder_hidden_states = state.apply_fn(batch["input_ids"], params=state.params, dropout_rng=rng, train=True)[0]
     print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
     # Predict the noise residual
