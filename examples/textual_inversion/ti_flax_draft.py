@@ -395,14 +395,6 @@ global_step = 0
 @jax.jit
 def eval_vae(params, images, rng):
     def eval_model(vae):
-        # recon_images, mean, logvar = vae(images, z_rng)
-        # comparison = jnp.concatenate([images[:8].reshape(-1, 28, 28, 1),
-        #                               recon_images[:8].reshape(-1, 28, 28, 1)])
-        #
-        # generate_images = vae.generate(z)
-        # generate_images = generate_images.reshape(-1, 28, 28, 1)
-        # metrics = compute_metrics(recon_images, images, mean, logvar)
-        # return metrics, comparison, generate_images
         latents = vae.encode(images).latent_dist.sample(rng)
         return latents
 
@@ -416,5 +408,5 @@ for epoch in range(num_train_epochs):
         # latents = nn.apply(eval_model, model())({'params': params})
         latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
         latents = latents * 0.18215
-        print(latents.shape)
+        # print(latents.shape)
 
