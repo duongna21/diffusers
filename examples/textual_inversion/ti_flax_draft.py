@@ -425,7 +425,7 @@ noise_scheduler = FlaxDDPMScheduler(
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
-        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode, train=False)
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
         latents = vae_outputs.latent_dist.sample(rng)
         latents = latents * 0.18215
         print('latents shape: ', latents.shape)
@@ -450,7 +450,7 @@ for epoch in range(num_train_epochs):
 
         # Predict the noise residual
         noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
-        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
         noise_pred = unet_outputs.sample
         # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
