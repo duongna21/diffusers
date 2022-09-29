@@ -393,13 +393,17 @@ global_step = 0
 #     @jax.jit
 
 vae_init = vae()
-# @jax.jit
+@jax.jit
 def eval_vae(params, images, rng):
     def eval_model(vae):
         latents = vae.encode(images).latent_dist.sample(rng)
         return latents
 
     return nn.apply(eval_model, vae_init)({'params': params})
+
+noise_scheduler = FlaxDDPMScheduler(
+    beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+)
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
@@ -410,4 +414,14 @@ for epoch in range(num_train_epochs):
         latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
         latents = latents * 0.18215
         print(latents.shape)
+
+        # Sample noise that we'll add to the latents
+        noise = jnp.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
+        bsz = latents.shape[0]
+        # Sample a random timestep for each image
+        timesteps = np.randint(
+            0, noise_scheduler.config.num_train_timesteps, (bsz,)
+        ).long()
+        print(timesteps)
+
 
