@@ -412,7 +412,8 @@ for epoch in range(num_train_epochs):
         # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         # latents = nn.apply(eval_model, model())({'params': params})
         # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
-        latents = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=FlaxAutoencoderKL.encode)
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=FlaxAutoencoderKL.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
         latents = latents * 0.18215
         print(latents.shape)
 
