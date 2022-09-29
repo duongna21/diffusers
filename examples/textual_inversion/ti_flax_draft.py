@@ -154,26 +154,27 @@ if len(token_ids) > 1:
 initializer_token_id = token_ids[0]
 placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 
-# text_encoder = FlaxCLIPTextModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
-# )
+text_encoder = FlaxCLIPTextModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
 print('Loaded text encoder sucessfully!')
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
-# _, state_vae = FlaxAutoencoderKL.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
-# )
+_, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
 # vae.params = state_vae
 # def vae():
+
 #     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
-# vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
-# print('Loaded autoencoder sucessfully!')
-# _, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
-# )
+vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
+print('Loaded autoencoder sucessfully!')
+_, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+)
 # unet.params = state_unet
-# unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
+unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
 print('Loaded unet sucessfully!')
 
 from torchvision import transforms
@@ -408,41 +409,40 @@ noise_scheduler = FlaxDDPMScheduler(
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
-        print(batch["pixel_values"].shape)
         # Convert images to latent space
         # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
         # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         # latents = nn.apply(eval_model, model())({'params': params})
         # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
-        # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
-        # latents = vae_outputs.latent_dist.sample(rng)
-        # latents = jnp.transpose(latents, (0, 3, 1, 2))
-        # latents = latents * 0.18215
-        # print('latents shape: ', latents.shape)
-        #
-        # # Sample noise that we'll add to the latents
-        # noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
-        # bsz = latents.shape[0]
-        # # Sample a random timestep for each image
-        # timesteps = jax.random.randint(
-        #     rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
-        # )
-        # print('timesteps: ', timesteps)
-        #
-        # # Add noise to the latents according to the noise magnitude at each timestep
-        # # (this is the forward diffusion process)
-        # noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-        # print('noisy_latents shape: ', noisy_latents.shape)
-        #
-        # # Get the text embedding for conditioning
-        # encoder_hidden_states = text_encoder(batch["input_ids"].numpy(), train=False)[0]
-        # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
-        #
-        # # Predict the noise residual
-        # unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
-        # noise_pred = unet_outputs.sample
-        # # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
-        # print('noise_pred shape: ', noise_pred.shape)
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=vae.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))
+        latents = latents * 0.18215
+        print('latents shape: ', latents.shape)
+
+        # Sample noise that we'll add to the latents
+        noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
+        bsz = latents.shape[0]
+        # Sample a random timestep for each image
+        timesteps = jax.random.randint(
+            rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+        )
+        print('timesteps: ', timesteps)
+
+        # Add noise to the latents according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        print('noisy_latents shape: ', noisy_latents.shape)
+
+        # Get the text embedding for conditioning
+        encoder_hidden_states = text_encoder(batch["input_ids"].numpy(), train=False)[0]
+        print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+
+        # Predict the noise residual
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
+        noise_pred = unet_outputs.sample
+        # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
+        print('noise_pred shape: ', noise_pred.shape)
 
         # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
 
