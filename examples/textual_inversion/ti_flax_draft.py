@@ -400,10 +400,11 @@ def eval_vae(params, images, rng):
         # generate_images = generate_images.reshape(-1, 28, 28, 1)
         # metrics = compute_metrics(recon_images, images, mean, logvar)
         # return metrics, comparison, generate_images
-        latents = vae.encode(jnp.array(images).latent_dist.sample(rng)
+        latents = vae.encode(jnp.array(images).latent_dist.sample(rng))
         return latents
 
     return nn.apply(eval_model, vae())({'params': params})
+
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
