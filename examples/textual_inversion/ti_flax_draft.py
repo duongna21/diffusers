@@ -407,7 +407,7 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=tex
 @jax.jit
 def train_step(state, batch, rng):
     # def loss_fn(params):
-    vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), train=False, method=vae.encode)
+    vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], train=False, method=vae.encode)
     latents = vae_outputs.latent_dist.sample(rng)
     latents = latents * 0.18215
     print('latents shape: ', latents.shape)
@@ -428,7 +428,7 @@ def train_step(state, batch, rng):
 
     # Get the text embedding for conditioning
     # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
-    encoder_hidden_states = state.apply_fn(batch["input_ids"].numpy(), params=params, dropout_rng=rng, train=True)[0]
+    encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
     print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
     # Predict the noise residual
