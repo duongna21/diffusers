@@ -400,7 +400,7 @@ def eval_vae(params, images, rng):
         # generate_images = generate_images.reshape(-1, 28, 28, 1)
         # metrics = compute_metrics(recon_images, images, mean, logvar)
         # return metrics, comparison, generate_images
-        latents = vae.encode(jnp.array(images)).latent_dist.sample(rng)
+        latents = vae.encode(images).latent_dist.sample(rng)
         return latents
 
     return nn.apply(eval_model, vae())({'params': params})
@@ -411,7 +411,7 @@ for epoch in range(num_train_epochs):
         # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
         # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         # latents = nn.apply(eval_model, model())({'params': params})
-        latents = eval_vae(state_vae, batch["pixel_values"], rng)
+        latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
         latents = latents * 0.18215
         print(latents.shape)
 
