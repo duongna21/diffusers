@@ -435,6 +435,9 @@ def train_step(state, batch, rng):
         unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
         noise_pred = unet_outputs.sample
         print('noise_pred shape: ', noise_pred.shape)
+        loss = (noise - noise_pred) ** 2
+        return loss.mean()
+
 
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
