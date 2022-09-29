@@ -387,9 +387,9 @@ print(f"  Instantaneous batch size per device = {train_batch_size}")
 print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
 print(f"  Total optimization steps = {max_train_steps}")
 
-progress_bar = tqdm(range(max_train_steps))
-progress_bar.set_description("Steps")
-global_step = 0
+# progress_bar = tqdm(range(max_train_steps))
+# progress_bar.set_description("Steps")
+# global_step = 0
 
 # Setup train state
 # state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
@@ -406,37 +406,42 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=tex
 
 @jax.jit
 def train_step(state, batch, rng):
-    # def loss_fn(params):
-    vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
-    latents = vae_outputs.latent_dist.sample(rng)
-    latents = latents * 0.18215
-    print('latents shape: ', latents.shape)
+    def loss_fn(params):
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
+        latents = latents * 0.18215
+        print('latents shape: ', latents.shape)
 
-    # Sample noise that we'll add to the latents
-    noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
-    bsz = latents.shape[0]
-    # Sample a random timestep for each image
-    timesteps = jax.random.randint(
-        rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
-    )
-    print('timesteps: ', timesteps)
+        # Sample noise that we'll add to the latents
+        noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
+        bsz = latents.shape[0]
+        # Sample a random timestep for each image
+        timesteps = jax.random.randint(
+            rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+        )
+        print('timesteps: ', timesteps)
 
-    # Add noise to the latents according to the noise magnitude at each timestep
-    # (this is the forward diffusion process)
-    noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-    print('noisy_latents shape: ', noisy_latents.shape)
+        # Add noise to the latents according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        print('noisy_latents shape: ', noisy_latents.shape)
 
-    # Get the text embedding for conditioning
-    # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
-    encoder_hidden_states = state.apply_fn(batch["input_ids"], params=state.params, dropout_rng=rng, train=True)[0]
-    print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+        # Get the text embedding for conditioning
+        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
+        print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
-    # Predict the noise residual
-    noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
-    unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
-    noise_pred = unet_outputs.sample
-    # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
-    print('noise_pred shape: ', noise_pred.shape)
+        # Predict the noise residual
+        noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        noise_pred = unet_outputs.sample
+        print('noise_pred shape: ', noise_pred.shape)
+
+    grad_fn = jax.value_and_grad(loss_fn)
+    loss, grad = grad_fn(state.params)
+    # grad = jax.lax.pmean(grad, "batch")
+    new_state = state.apply_gradients(grads=grad)
+    metrics = {"loss": loss}
+    return metrics
 
 
 # @jax.jit
@@ -453,12 +458,26 @@ noise_scheduler = FlaxDDPMScheduler(
 
 from jax.tree_util import tree_map
 
+num_train_samples = len(train_dataset)
+
+epochs = tqdm(range(num_train_epochs), desc=f"Epoch ... (1/{num_train_epochs})", position=0)
 for epoch in range(num_train_epochs):
+    train_metrics = []
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
 
         train_step(state, batch, rng)
+        # train_metrics.append(train_metric)
+        cur_step = epoch * (num_train_samples // train_batch_size) + step
+
+        if cur_step % 10 == 0 and cur_step > 0:
+            epochs.write(
+                f"Step... ({cur_step} | Loss: {train_metric['loss']})"
+            )
+            # train_metrics = []
+
+
 
         # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
         # latents = vae_outputs.latent_dist.sample(rng)
