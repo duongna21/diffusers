@@ -439,8 +439,6 @@ def train_step(state, batch, rng):
     print('noise_pred shape: ', noise_pred.shape)
 
 
-
-
 # @jax.jit
 # def eval_vae(params, images, rng):
 #     def eval_model(vae):
@@ -457,6 +455,7 @@ from jax.tree_util import tree_map
 
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
+        print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
 
         train_step(state, batch, rng)
