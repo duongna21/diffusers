@@ -415,7 +415,7 @@ for epoch in range(num_train_epochs):
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=FlaxAutoencoderKL.encode)
         latents = vae_outputs.latent_dist.sample(rng)
         latents = latents * 0.18215
-        print(latents.shape)
+        print('latents shape: ', latents.shape)
 
         # Sample noise that we'll add to the latents
         noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
@@ -424,12 +424,12 @@ for epoch in range(num_train_epochs):
         timesteps = np.random.randint(
             0, noise_scheduler.config.num_train_timesteps, (bsz,)
         )#.astype(int)
-        print(timesteps)
+        print('timesteps: ', timesteps)
 
         # Add noise to the latents according to the noise magnitude at each timestep
         # (this is the forward diffusion process)
         noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-        print(noisy_latents.shape)
+        print('noisy_latents shape: ', noisy_latents.shape)
 
         # Get the text embedding for conditioning
         encoder_hidden_states = text_encoder(batch["input_ids"])[0]
