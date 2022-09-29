@@ -423,7 +423,7 @@ for epoch in range(num_train_epochs):
         # Sample a random timestep for each image
         timesteps = np.random.randint(
             0, noise_scheduler.config.num_train_timesteps, (bsz,)
-        )#.astype(int)
+        )
         print('timesteps: ', timesteps)
 
         # Add noise to the latents according to the noise magnitude at each timestep
@@ -436,8 +436,12 @@ for epoch in range(num_train_epochs):
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
-        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states)
+        noise_pred = unet_outputs.sample
+        # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
+
+        # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
 
 
 
