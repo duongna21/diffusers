@@ -165,9 +165,9 @@ _, state_vae = FlaxAutoencoderKL.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 )
 # vae.params = state_vae
-def vae():
-    return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
-
+# def vae():
+#     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
+vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 print('Loaded autoencoder sucessfully!')
 # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
 #     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
@@ -392,14 +392,14 @@ global_step = 0
 # def train_step(state, batch, z_rng):
 #     @jax.jit
 
-vae_init = vae()
-@jax.jit
-def eval_vae(params, images, rng):
-    def eval_model(vae):
-        latents = vae.encode(images).latent_dist.sample(rng)
-        return latents
-
-    return nn.apply(eval_model, vae_init)({'params': params})
+# vae_init = vae()
+# @jax.jit
+# def eval_vae(params, images, rng):
+#     def eval_model(vae):
+#         latents = vae.encode(images).latent_dist.sample(rng)
+#         return latents
+#
+#     return nn.apply(eval_model, vae_init)({'params': params})
 
 noise_scheduler = FlaxDDPMScheduler(
     beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
@@ -411,7 +411,8 @@ for epoch in range(num_train_epochs):
         # recon_x, mean, logvar = model().apply({'params': params}, batch, z_rng)
         # latents = vae(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         # latents = nn.apply(eval_model, model())({'params': params})
-        latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
+        # latents = eval_vae(state_vae, batch["pixel_values"].numpy(), rng)
+        latents = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), method=FlaxAutoencoderKL.encode)
         latents = latents * 0.18215
         print(latents.shape)
 
