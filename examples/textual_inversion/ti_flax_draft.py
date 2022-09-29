@@ -169,9 +169,9 @@ _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 print('Loaded autoencoder sucessfully!')
-# unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-#     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
-# )
+unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+)
 # unet.params = state_unet
 # print('Loaded unet sucessfully!')
 
@@ -432,11 +432,11 @@ for epoch in range(num_train_epochs):
         print('noisy_latents shape: ', noisy_latents.shape)
 
         # Get the text embedding for conditioning
-        encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
+        encoder_hidden_states = text_encoder(batch["input_ids"].numpy(), train=False)[0]
         print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
 
         # Predict the noise residual
-        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+        noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, params=state_unet, train=False).sample
         print('noise_pred shape: ', noise_pred.shape)
 
 
