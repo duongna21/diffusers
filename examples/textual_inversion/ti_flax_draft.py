@@ -9,6 +9,7 @@ from typing import Optional
 
 import numpy as np
 import jax
+import jax.numpy as jnp
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -383,7 +384,7 @@ global_step = 0
 for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         # Convert images to latent space
-        latents = vae.encode(batch["pixel_values"]).latent_dist.sample(rng)
+        latents = vae.encode(jnp.array(batch["pixel_values"])).latent_dist.sample(rng)
         latents = latents * 0.18215
         print(latents.shape)
 
