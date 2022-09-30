@@ -315,7 +315,7 @@ hyperparameters = {
 }
 learning_rate = hyperparameters['learning_rate']
 scale_lr = hyperparameters['scale_lr']
-train_batch_size = hyperparameters['train_batch_size'] * jax.device_count()
+train_batch_size = hyperparameters['train_batch_size'] #* jax.device_count()
 
 train_dataloader = create_dataloader(train_batch_size)
 # print(next(iter(train_dataloader)))
@@ -497,7 +497,7 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
-        batch = shard(batch)
+        # batch = shard(batch)
         state, train_metric, rng = train_step(state, batch, rng)
         train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
