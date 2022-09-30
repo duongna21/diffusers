@@ -451,6 +451,7 @@ def train_step(state, batch, dropout_rng):
         loss = loss.mean()
         # loss = jax.lax.pmean(loss, "batch")
         print('loss: ', loss)
+        jax.profiler.save_device_memory_profile("memory.prof")
         return loss
 
         # return loss
@@ -464,13 +465,13 @@ def train_step(state, batch, dropout_rng):
     metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
     return new_state, metrics, new_dropout_rng
 
-p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
+# p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
 from flax.jax_utils import pad_shard_unpad, unreplicate
 from flax.training.common_utils import get_metrics, onehot, shard
 
 
-state = jax_utils.replicate(state)
+# state = jax_utils.replicate(state)
 
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
 # @jax.jit
@@ -497,7 +498,7 @@ for epoch in range(num_train_epochs):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
         batch = shard(batch)
-        state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
+        state, train_metric, rng = train_step(state, batch, rng)
         train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
@@ -509,7 +510,7 @@ for epoch in range(num_train_epochs):
             )
             # train_metrics = []
 
-        jax.profiler.save_device_memory_profile("memory.prof")
+
 
         # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
         # latents = vae_outputs.latent_dist.sample(rng)
