@@ -451,7 +451,7 @@ def train_step(state, batch, dropout_rng):
         loss = loss.mean()
         # loss = jax.lax.pmean(loss, "batch")
         print('loss: ', loss)
-        return state, loss
+        return loss
 
         # return loss
 
