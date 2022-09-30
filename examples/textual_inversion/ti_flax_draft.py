@@ -491,6 +491,7 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
+        batch = shard(batch)
         state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
         train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
