@@ -435,7 +435,7 @@ def train_step(state, batch, rng):
     # Get the text embedding for conditioning
     encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
     # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
-    print('encoder_hidden_states sample: ', encoder_hidden_states[0][0][0])
+    print('encoder_hidden_states sample: ', encoder_hidden_states.shape, encoder_hidden_states[0])
 
     # Predict the noise residual
     # noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
