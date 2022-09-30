@@ -446,7 +446,8 @@ def train_step(state, batch, rng):
     # print('noise_pred: ', noise_pred)
     print('noise_pred sample: ', noise_pred[0][0][0])
     loss = (noise - noise_pred) ** 2
-    loss = loss.mean()
+    # loss = loss.mean()
+    loss = jax.lax.pmean(loss, "batch")
     print('loss: ', loss)
     return loss
 
