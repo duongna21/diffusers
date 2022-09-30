@@ -451,7 +451,7 @@ def train_step(state, batch, dropout_rng):
         loss = loss.mean()
         # loss = jax.lax.pmean(loss, "batch")
         print('loss: ', loss)
-        jax.profiler.save_device_memory_profile("memory.prof")
+
         return loss
 
         # return loss
@@ -463,6 +463,7 @@ def train_step(state, batch, dropout_rng):
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
+    jax.profiler.save_device_memory_profile("memory.prof")
     return new_state, metrics, new_dropout_rng
 
 # p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
