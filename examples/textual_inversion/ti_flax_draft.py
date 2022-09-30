@@ -404,7 +404,7 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-@jax.jit
+@jax.jit(donate_argnums=(0,))
 def train_step(state, batch, rng):
     # def loss_fn(params):
     params = text_encoder.params
@@ -459,6 +459,7 @@ def train_step(state, batch, rng):
     # metrics = {"loss": loss}
     # return metrics
 
+# p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
 # @jax.jit
 # def eval_vae(params, images, rng):
