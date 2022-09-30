@@ -407,7 +407,7 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=tex
 # @jax.jit
 def train_step(state, batch, rng):
     # def loss_fn(params):
-    params = state.params
+    params = text_encoder.params
     vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
     latents = vae_outputs.latent_dist.sample(rng)
     latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
