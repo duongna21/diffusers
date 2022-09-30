@@ -404,7 +404,7 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-@jax.jit
+# @jax.jit
 def train_step(state, batch, rng):
     # def loss_fn(params):
     params = state.params
@@ -440,8 +440,9 @@ def train_step(state, batch, rng):
     print('noise_pred shape: ', noise_pred.shape)
     loss = (noise - noise_pred) ** 2
     loss = loss.mean()
+    print('loss: ', loss)
     return loss
-    # print('loss: ', loss)
+
         # return loss
 
     # loss = loss_fn(state.params)
