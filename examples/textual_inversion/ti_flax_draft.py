@@ -440,6 +440,7 @@ def train_step(state, batch, rng):
         loss = (noise - noise_pred) ** 2
         loss = loss.mean()
         print('loss: ', loss)
+        return loss
 
     loss = loss_fn(state.params)
     # grad_fn = jax.value_and_grad(loss_fn)
