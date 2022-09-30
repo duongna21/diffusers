@@ -404,7 +404,7 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-# @jax.jit
+@jax.jit
 def train_step(state, batch, rng):
     # def loss_fn(params):
     params = text_encoder.params
