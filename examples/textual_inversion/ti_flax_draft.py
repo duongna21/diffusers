@@ -447,7 +447,7 @@ def train_step(state, batch, rng):
     loss = (noise - noise_pred) ** 2
     loss = loss.mean()
     print('loss: ', loss)
-    # return loss
+    return loss
 
         # return loss
 
