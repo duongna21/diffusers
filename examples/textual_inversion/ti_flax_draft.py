@@ -499,7 +499,7 @@ for epoch in range(num_train_epochs):
         batch = tree_map(lambda x: x.numpy(), batch)
         # batch = shard(batch)
         state, train_metric, rng = train_step(state, batch, rng)
-        train_metric = jax_utils.unreplicate(train_metric)
+        # train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
         cur_step = epoch * (num_train_samples // train_batch_size) + step
