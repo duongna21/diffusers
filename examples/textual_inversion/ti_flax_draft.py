@@ -315,7 +315,7 @@ hyperparameters = {
 }
 learning_rate = hyperparameters['learning_rate']
 scale_lr = hyperparameters['scale_lr']
-train_batch_size = hyperparameters['train_batch_size']
+train_batch_size = hyperparameters['train_batch_size'] * jax.device_count()
 
 train_dataloader = create_dataloader(train_batch_size)
 # print(next(iter(train_dataloader)))
@@ -323,7 +323,7 @@ num_processes = jax.local_device_count()
 
 if scale_lr:
     learning_rate = (
-        learning_rate * train_batch_size * num_processes
+        learning_rate * train_batch_size
     )
 
 # lr_scheduler = get_scheduler(
@@ -378,7 +378,7 @@ max_train_steps = 3000
 # Afterwards we recalculate our number of training epochs
 num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
 
-total_batch_size = train_batch_size * num_processes
+total_batch_size = train_batch_size
 
 print("***** Running training *****")
 print(f"  Num examples = {len(train_dataset)}")
