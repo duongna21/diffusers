@@ -404,8 +404,8 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-from functools import partial
-@partial(jax.jit, donate_argnums=(0,))
+# from functools import partial
+# @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, rng):
     # def loss_fn(params):
     params = text_encoder.params
@@ -448,7 +448,7 @@ def train_step(state, batch, rng):
     loss = (noise - noise_pred) ** 2
     loss = loss.mean()
     print('loss: ', loss)
-    return state, loss
+    return loss
 
         # return loss
 
@@ -460,7 +460,9 @@ def train_step(state, batch, rng):
     # metrics = {"loss": loss}
     # return metrics
 
-# p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
+p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
+
+state = jax_utils.replicate(state)
 
 # @jax.jit
 # def eval_vae(params, images, rng):
@@ -484,9 +486,8 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
-
-        state, train_metric = train_step(state, batch, rng)
-        print(train_metrics)
+        train_metric = p_train_step(state, batch, rng)
+        # print(train_metrics)
         # train_metrics.append(train_metric)
         # cur_step = epoch * (num_train_samples // train_batch_size) + step
         #
