@@ -406,7 +406,9 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=tex
 
 # from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
-def train_step(state, batch, rng):
+def train_step(state, batch, dropout_rng):
+    dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+
     def loss_fn(params):
         # params = text_encoder.params
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
@@ -434,7 +436,7 @@ def train_step(state, batch, rng):
         print('noisy_latents sample: ', noisy_latents[0][0][0])
 
         # Get the text embedding for conditioning
-        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
+        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True)[0]
         # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
         print('encoder_hidden_states sample: ', encoder_hidden_states.shape, encoder_hidden_states[0])
 
@@ -460,12 +462,13 @@ def train_step(state, batch, rng):
     new_state = state.apply_gradients(grads=grad)
     # metrics = {"loss": loss}
     metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
-    return new_state, metrics
+    return new_state, metrics, new_dropout_rng
 
 p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
 state = jax_utils.replicate(state)
 
+dropout_rngs = jax.random.split(rng, jax.local_device_count())
 # @jax.jit
 # def eval_vae(params, images, rng):
 #     def eval_model(vae):
@@ -488,7 +491,7 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
-        state, train_metric = p_train_step(state, batch, rng)
+        state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
         train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
