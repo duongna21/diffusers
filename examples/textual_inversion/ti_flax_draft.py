@@ -438,6 +438,7 @@ def train_step(state, batch, rng):
     unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
     noise_pred = unet_outputs.sample
     print('noise_pred shape: ', noise_pred.shape)
+    print('noise_pred: ', noise_pred)
     loss = (noise - noise_pred) ** 2
     loss = loss.mean()
     print('loss: ', loss)
