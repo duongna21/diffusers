@@ -404,8 +404,8 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-# from functools import partial
-# @partial(jax.jit, donate_argnums=(0,))
+from functools import partial
+@partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
 
@@ -500,6 +500,7 @@ for epoch in range(num_train_epochs):
         batch = tree_map(lambda x: x.numpy(), batch)
         # batch = shard(batch)
         state, train_metric, rng = train_step(state, batch, rng)
+        jax.profiler.save_device_memory_profile("memory_2.prof")
         # train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
