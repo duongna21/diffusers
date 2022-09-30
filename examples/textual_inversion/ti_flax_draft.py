@@ -434,7 +434,7 @@ def train_step(state, batch, rng):
         print('noisy_latents sample: ', noisy_latents[0][0][0])
 
         # Get the text embedding for conditioning
-        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=state.params, dropout_rng=rng, train=True)[0]
+        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=rng, train=True)[0]
         # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
         print('encoder_hidden_states sample: ', encoder_hidden_states.shape, encoder_hidden_states[0])
 
@@ -460,7 +460,7 @@ def train_step(state, batch, rng):
     new_state = state.apply_gradients(grads=grad)
     # metrics = {"loss": loss}
     metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
-    return metrics
+    return new_state, metrics
 
 p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
@@ -489,15 +489,16 @@ for epoch in range(num_train_epochs):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
         state, train_metric = p_train_step(state, batch, rng)
+        train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
-        # cur_step = epoch * (num_train_samples // train_batch_size) + step
+        cur_step = epoch * (num_train_samples // train_batch_size) + step
         #
-        # if cur_step % 10 == 0 and cur_step > 0:
-        #     epochs.write(
-        #         f"Step... ({cur_step} | Loss: {train_metric['loss']})"
-        #     )
-        #     # train_metrics = []
+        if cur_step % 10 == 0 and cur_step > 0:
+            epochs.write(
+                f"Step... ({cur_step} | Loss: {train_metric['loss']})"
+            )
+            # train_metrics = []
 
 
 
