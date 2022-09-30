@@ -466,6 +466,10 @@ def train_step(state, batch, dropout_rng):
 
 p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
+from flax.jax_utils import pad_shard_unpad, unreplicate
+from flax.training.common_utils import get_metrics, onehot, shard
+
+
 state = jax_utils.replicate(state)
 
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
