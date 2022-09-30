@@ -486,6 +486,7 @@ noise_scheduler = FlaxDDPMScheduler(
 )
 
 from jax.tree_util import tree_map
+import jax.profiler
 
 num_train_samples = len(train_dataset)
 
@@ -508,7 +509,7 @@ for epoch in range(num_train_epochs):
             )
             # train_metrics = []
 
-
+        jax.profiler.save_device_memory_profile("memory.prof")
 
         # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
         # latents = vae_outputs.latent_dist.sample(rng)

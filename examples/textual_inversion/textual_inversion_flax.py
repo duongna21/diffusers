@@ -1,3 +1,4 @@
+#@title Import required libraries
 import argparse
 import itertools
 import math
@@ -7,6 +8,9 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import jax
+import jax.numpy as jnp
+import flax.linen as nn
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
@@ -18,155 +22,59 @@ from diffusers.optimization import get_scheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
-from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer
 
-logger = get_logger(__name__)
+def image_grid(imgs, rows, cols):
+    assert len(imgs) == rows*cols
 
+    w, h = imgs[0].size
+    grid = Image.new('RGB', size=(cols*w, rows*h))
+    grid_w, grid_h = grid.size
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Simple example of a training script.")
-    parser.add_argument(
-        "--pretrained_model_name_or_path",
-        type=str,
-        default=None,
-        required=True,
-        help="Path to pretrained model or model identifier from huggingface.co/models.",
-    )
-    parser.add_argument(
-        "--tokenizer_name",
-        type=str,
-        default=None,
-        help="Pretrained tokenizer name or path if not the same as model_name",
-    )
-    parser.add_argument(
-        "--train_data_dir", type=str, default=None, required=True, help="A folder containing the training data."
-    )
-    parser.add_argument(
-        "--placeholder_token",
-        type=str,
-        default=None,
-        required=True,
-        help="A token to use as a placeholder for the concept.",
-    )
-    parser.add_argument(
-        "--initializer_token", type=str, default=None, required=True, help="A token to use as initializer word."
-    )
-    parser.add_argument("--learnable_property", type=str, default="object", help="Choose between 'object' and 'style'")
-    parser.add_argument("--repeats", type=int, default=100, help="How many times to repeat the training data.")
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="text-inversion-model",
-        help="The output directory where the model predictions and checkpoints will be written.",
-    )
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
-    parser.add_argument(
-        "--resolution",
-        type=int,
-        default=512,
-        help=(
-            "The resolution for input images, all the images in the train/validation dataset will be resized to this"
-            " resolution"
-        ),
-    )
-    parser.add_argument(
-        "--center_crop", action="store_true", help="Whether to center crop images before resizing to resolution"
-    )
-    parser.add_argument(
-        "--train_batch_size", type=int, default=16, help="Batch size (per device) for the training dataloader."
-    )
-    parser.add_argument("--num_train_epochs", type=int, default=100)
-    parser.add_argument(
-        "--max_train_steps",
-        type=int,
-        default=5000,
-        help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
-    )
-    parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=1,
-        help="Number of updates steps to accumulate before performing a backward/update pass.",
-    )
-    parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=1e-4,
-        help="Initial learning rate (after the potential warmup period) to use.",
-    )
-    parser.add_argument(
-        "--scale_lr",
-        action="store_true",
-        default=True,
-        help="Scale the learning rate by the number of GPUs, gradient accumulation steps, and batch size.",
-    )
-    parser.add_argument(
-        "--lr_scheduler",
-        type=str,
-        default="constant",
-        help=(
-            'The scheduler type to use. Choose between ["linear", "cosine", "cosine_with_restarts", "polynomial",'
-            ' "constant", "constant_with_warmup"]'
-        ),
-    )
-    parser.add_argument(
-        "--lr_warmup_steps", type=int, default=500, help="Number of steps for the warmup in the lr scheduler."
-    )
-    parser.add_argument("--adam_beta1", type=float, default=0.9, help="The beta1 parameter for the Adam optimizer.")
-    parser.add_argument("--adam_beta2", type=float, default=0.999, help="The beta2 parameter for the Adam optimizer.")
-    parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay to use.")
-    parser.add_argument("--adam_epsilon", type=float, default=1e-08, help="Epsilon value for the Adam optimizer")
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
-    parser.add_argument(
-        "--use_auth_token",
-        action="store_true",
-        help=(
-            "Will use the token generated when running `huggingface-cli login` (necessary to use this script with"
-            " private models)."
-        ),
-    )
-    parser.add_argument("--hub_token", type=str, default=None, help="The token to use to push to the Model Hub.")
-    parser.add_argument(
-        "--hub_model_id",
-        type=str,
-        default=None,
-        help="The name of the repository to keep in sync with the local `output_dir`.",
-    )
-    parser.add_argument(
-        "--logging_dir",
-        type=str,
-        default="logs",
-        help=(
-            "[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"
-            " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."
-        ),
-    )
-    parser.add_argument(
-        "--mixed_precision",
-        type=str,
-        default="no",
-        choices=["no", "fp16", "bf16"],
-        help=(
-            "Whether to use mixed precision. Choose"
-            "between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >= 1.10."
-            "and an Nvidia Ampere GPU."
-        ),
-    )
-    parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
+    for i, img in enumerate(imgs):
+        grid.paste(img, box=(i%cols*w, i//cols*h))
+    return grid
 
-    args = parser.parse_args()
-    env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
-    if env_local_rank != -1 and env_local_rank != args.local_rank:
-        args.local_rank = env_local_rank
+pretrained_model_name_or_path = "stable-diffusion-v1-4" #@param {type:"string"}
+# pretrained_model_name_or_path = "CompVis/stable-diffusion-v1-4" #@param {type:"string"}
 
-    if args.train_data_dir is None:
-        raise ValueError("You must specify a train data directory.")
+#@markdown Add here the URLs to the images of the concept you are adding. 3-5 should be fine
+urls = [
+      "https://huggingface.co/datasets/valhalla/images/resolve/main/2.jpeg",
+      "https://huggingface.co/datasets/valhalla/images/resolve/main/3.jpeg",
+      "https://huggingface.co/datasets/valhalla/images/resolve/main/5.jpeg",
+      "https://huggingface.co/datasets/valhalla/images/resolve/main/6.jpeg",
+      ]
 
-    return args
+#@title Setup and check the images you have just added
+import requests
+import glob
+from io import BytesIO
 
+def download_image(url):
+  try:
+    response = requests.get(url)
+  except:
+    return None
+  return Image.open(BytesIO(response.content)).convert("RGB")
 
+images = list(filter(None,[download_image(url) for url in urls]))
+save_path = "./my_concept"
+if not os.path.exists(save_path):
+  os.mkdir(save_path)
+[image.save(f"{save_path}/{i}.jpeg") for i, image in enumerate(images)]
+# image_grid(images, 1, len(images))
+
+#@title Settings for your newly created concept
+#@markdown `what_to_teach`: what is it that you are teaching? `object` enables you to teach the model a new object to be used, `style` allows you to teach the model a new style one can use.
+what_to_teach = "object" #@param ["object", "style"]
+#@markdown `placeholder_token` is the token you are going to use to represent your new concept (so when you prompt the model, you will say "A `<my-placeholder-token>` in an amusement park"). We use angle brackets to differentiate a token from other words/tokens, to avoid collision.
+placeholder_token = "<cat-toy>" #@param {type:"string"}
+#@markdown `initializer_token` is a word that can summarise what your new concept is, to be used as a starting point
+initializer_token = "toy" #@param {type:"string"}
+
+#@title Setup the prompt templates for training
 imagenet_templates_small = [
     "a photo of a {}",
     "a rendering of a {}",
@@ -220,6 +128,58 @@ imagenet_style_templates_small = [
 ]
 
 
+#@title Load the tokenizer and add the placeholder token as a additional special token.
+#@markdown Please read and if you agree accept the LICENSE [here](https://huggingface.co/CompVis/stable-diffusion-v1-4) if you see an error
+tokenizer = CLIPTokenizer.from_pretrained(
+    pretrained_model_name_or_path,
+    subfolder="tokenizer",
+    use_auth_token=True,
+)
+
+# Add the placeholder token in tokenizer
+num_added_tokens = tokenizer.add_tokens(placeholder_token)
+if num_added_tokens == 0:
+    raise ValueError(
+        f"The tokenizer already contains the token {placeholder_token}. Please pass a different"
+        " `placeholder_token` that is not already in the tokenizer."
+    )
+
+#@title Get token ids for our placeholder and initializer token. This code block will complain if initializer string is not a single token
+# Convert the initializer_token, placeholder_token to ids
+token_ids = tokenizer.encode(initializer_token, add_special_tokens=False)
+# Check if initializer_token is a single token or a sequence of tokens
+if len(token_ids) > 1:
+    raise ValueError("The initializer token must be a single token.")
+
+initializer_token_id = token_ids[0]
+placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
+
+text_encoder = FlaxCLIPTextModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
+)
+print('Loaded text encoder sucessfully!')
+
+# _, state_vae = FlaxAutoencoderKL.from_pretrained(
+#     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
+# )
+_, state_vae = FlaxAutoencoderKL.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+)
+# vae.params = state_vae
+# def vae():
+
+#     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
+vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
+print('Loaded autoencoder sucessfully!')
+_, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+)
+# unet.params = state_unet
+unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
+print('Loaded unet sucessfully!')
+
+from torchvision import transforms
+#@title Setup the dataset
 class TextualInversionDataset(Dataset):
     def __init__(
         self,
@@ -234,6 +194,7 @@ class TextualInversionDataset(Dataset):
         placeholder_token="*",
         center_crop=False,
     ):
+
         self.data_root = data_root
         self.tokenizer = tokenizer
         self.learnable_property = learnable_property
@@ -302,200 +263,285 @@ class TextualInversionDataset(Dataset):
         example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
         return example
 
-# How to freeze in Flax?
-# def freeze_params(params):
-#     for param in params:
-#         param.requires_grad = False
+rng = jax.random.PRNGKey(10)
+def resize_token_embeddings(model, new_num_tokens):
+    if model.config.vocab_size == new_num_tokens or new_num_tokens is None:
+        return
+    model.config.vocab_size = new_num_tokens
 
+    params = model.params
+    old_embeddings = params['text_model']['embeddings']['token_embedding']['embedding']
+    old_num_tokens, emb_dim = old_embeddings.shape
 
-def main():
-    args = parse_args()
-    logging_dir = os.path.join(args.output_dir, args.logging_dir)
+    initializer = jax.nn.initializers.normal()
 
-    # If passed along, set the training seed now.
-    if args.seed is not None:
-        set_seed(args.seed)
+    new_embeddings = initializer(rng, (new_num_tokens, emb_dim))
+    new_embeddings = new_embeddings.at[:old_num_tokens].set(old_embeddings)
+    params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
+    model.params = params
 
-    # Load the tokenizer and add the placeholder token as a additional special token
-    if args.tokenizer_name:
-        tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
-    elif args.pretrained_model_name_or_path:
-        tokenizer = CLIPTokenizer.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="tokenizer", use_auth_token=args.use_auth_token
+# print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
+resize_token_embeddings(text_encoder, len(tokenizer))
+# print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
+#
+# print(placeholder_token_id, initializer_token_id)
+# token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
+# token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
+# print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
+
+train_dataset = TextualInversionDataset(
+      data_root=save_path,
+      tokenizer=tokenizer,
+      size=512,
+      placeholder_token=placeholder_token,
+      repeats=100,
+      learnable_property=what_to_teach, #Option selected above between object and style
+      center_crop=False,
+      set="train",
+)
+
+print('len(train_dataset): ', len(train_dataset))
+
+def create_dataloader(train_batch_size=1):
+    return torch.utils.data.DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
+
+hyperparameters = {
+    "learning_rate": 5e-04,
+    "scale_lr": True,
+    "max_train_steps": 3000,
+    "train_batch_size": 1,
+    "seed": 42,
+    "output_dir": "sd-concept-output"
+}
+learning_rate = hyperparameters['learning_rate']
+scale_lr = hyperparameters['scale_lr']
+train_batch_size = hyperparameters['train_batch_size'] * jax.device_count()
+
+train_dataloader = create_dataloader(train_batch_size)
+# print(next(iter(train_dataloader)))
+num_processes = jax.local_device_count()
+
+if scale_lr:
+    learning_rate = (
+        learning_rate * train_batch_size
+    )
+
+# lr_scheduler = get_scheduler(
+#     args.lr_scheduler,
+#     optimizer=optimizer,
+#     num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
+#     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+# )
+
+import optax
+
+constant_scheduler = optax.constant_schedule(0.0001)
+optimizer = optax.sgd(learning_rate=constant_scheduler)
+
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_epsilon = 1e-8
+weight_decay = 1e-2
+
+from flax import jax_utils, traverse_util
+def decay_mask_fn(params):
+    flat_params = traverse_util.flatten_dict(params)
+    # find out all LayerNorm parameters
+    layer_norm_candidates = ["layernorm", "layer_norm", "ln"]
+    layer_norm_named_params = set(
+        [
+            layer[-2:]
+            for layer_norm_name in layer_norm_candidates
+            for layer in flat_params.keys()
+            if layer_norm_name in "".join(layer).lower()
+        ]
+    )
+    flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
+    return traverse_util.unflatten_dict(flat_mask)
+
+optimizer = optax.adamw(
+    learning_rate=constant_scheduler,
+    b1=adam_beta1,
+    b2=adam_beta2,
+    eps=adam_epsilon,
+    weight_decay=weight_decay,
+    mask=decay_mask_fn,
+)
+
+# Keep vae and unet in eval model as we don't train these
+# vae.eval()
+# unet.eval()
+# train=False
+
+num_update_steps_per_epoch = math.ceil(len(train_dataloader))
+max_train_steps = 3000
+# Afterwards we recalculate our number of training epochs
+num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
+
+total_batch_size = train_batch_size
+
+print("***** Running training *****")
+print(f"  Num examples = {len(train_dataset)}")
+print(f"  Num Epochs = {num_train_epochs}")
+print(f"  Instantaneous batch size per device = {train_batch_size}")
+print(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+print(f"  Total optimization steps = {max_train_steps}")
+
+# progress_bar = tqdm(range(max_train_steps))
+# progress_bar.set_description("Steps")
+# global_step = 0
+
+# Setup train state
+# state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=optimizer)
+
+# Define gradient update step fn
+# def train_step(state, batch, dropout_rng):
+    # dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+    #
+    # def loss_fn(params):
+
+from flax.training import train_state
+# Setup train state
+state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
+
+# from functools import partial
+# @partial(jax.jit, donate_argnums=(0,))
+def train_step(state, batch, dropout_rng):
+    dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+
+    def loss_fn(params):
+        # params = text_encoder.params
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        latents = latents * 0.18215
+
+        # print('latents shape: ', latents.shape)
+        print('latent sample: ', latents[0][0][0])
+
+        # Sample noise that we'll add to the latents
+        noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
+        print('noise sample: ',  noise[0][0][0])
+        bsz = latents.shape[0]
+        # Sample a random timestep for each image
+        timesteps = jax.random.randint(
+            rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
         )
+        print('timesteps: ', timesteps)
 
-    # Add the placeholder token in tokenizer
-    num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
-    if num_added_tokens == 0:
-        raise ValueError(
-            f"The tokenizer already contains the token {args.placeholder_token}. Please pass a different"
-            " `placeholder_token` that is not already in the tokenizer."
-        )
+        # Add noise to the latents according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        # print('noisy_latents shape: ', noisy_latents.shape)
+        print('noisy_latents sample: ', noisy_latents[0][0][0])
 
-    # Convert the initializer_token, placeholder_token to ids
-    token_ids = tokenizer.encode(args.initializer_token, add_special_tokens=False)
-    # Check if initializer_token is a single token or a sequence of tokens
-    if len(token_ids) > 1:
-        raise ValueError("The initializer token must be a single token.")
+        # Get the text embedding for conditioning
+        encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True)[0]
+        # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+        print('encoder_hidden_states sample: ', encoder_hidden_states.shape, encoder_hidden_states[0])
 
-    initializer_token_id = token_ids[0]
-    placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
+        # Predict the noise residual
+        # noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        noise_pred = unet_outputs.sample
+        # print('noise_pred shape: ', noise_pred.shape)
+        # print('noise_pred: ', noise_pred)
+        print('noise_pred sample: ', noise_pred[0][0][0])
+        loss = (noise - noise_pred) ** 2
+        loss = loss.mean()
+        # loss = jax.lax.pmean(loss, "batch")
+        print('loss: ', loss)
+        return loss
 
-    # Load models and create wrapper for stable diffusion
-    text_encoder = FlaxCLIPTextModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="text_encoder", use_auth_token=args.use_auth_token
-    )
-    vae = FlaxAutoencoderKL.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="vae", use_auth_token=args.use_auth_token
-    )
-    unet = FlaxUNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", use_auth_token=args.use_auth_token
-    )
+        # return loss
 
-    # Resize the token embeddings as we are adding new special tokens to the tokenizer
-    text_encoder.resize_token_embeddings(len(tokenizer))
+    # loss = loss_fn(state.params)
+    grad_fn = jax.value_and_grad(loss_fn)
+    loss, grad = grad_fn(state.params)
+    grad = jax.lax.pmean(grad, "batch")
+    new_state = state.apply_gradients(grads=grad)
+    # metrics = {"loss": loss}
+    metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
+    return new_state, metrics, new_dropout_rng
 
-    # Initialise the newly added placeholder token with the embeddings of the initializer token
-    token_embeds = text_encoder.get_input_embeddings().weight.data
-    token_embeds[placeholder_token_id] = token_embeds[initializer_token_id]
+p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
-    # TODO: Freeze params
-    # Freeze vae and unet
-    # freeze_params(vae.parameters())
-    # freeze_params(unet.parameters())
-    # # Freeze all parameters except for the token embeddings in text encoder
-    # params_to_freeze = itertools.chain(
-    #     text_encoder.text_model.encoder.parameters(),
-    #     text_encoder.text_model.final_layer_norm.parameters(),
-    #     text_encoder.text_model.embeddings.position_embedding.parameters(),
-    # )
-    # freeze_params(params_to_freeze)
+from flax.jax_utils import pad_shard_unpad, unreplicate
+from flax.training.common_utils import get_metrics, onehot, shard
 
-    if args.scale_lr:
-        args.learning_rate = (
-            args.learning_rate * args.gradient_accumulation_steps * args.train_batch_size * accelerator.num_processes
-        )
 
-    # TODO: Optimizer
-    # Initialize the optimizer
-    # optimizer = torch.optim.AdamW(
-    #     text_encoder.get_input_embeddings().parameters(),  # only optimize the embeddings
-    #     lr=args.learning_rate,
-    #     betas=(args.adam_beta1, args.adam_beta2),
-    #     weight_decay=args.adam_weight_decay,
-    #     eps=args.adam_epsilon,
-    # )
+state = jax_utils.replicate(state)
 
-    noise_scheduler = FlaxDDPMScheduler(
-        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000,
-        tensor_format="pt"
-    )
+dropout_rngs = jax.random.split(rng, jax.local_device_count())
+# @jax.jit
+# def eval_vae(params, images, rng):
+#     def eval_model(vae):
+#         latents = vae.encode(images).latent_dist.sample(rng)
+#         return latents
+#
+#     return nn.apply(eval_model, vae_init)({'params': params})
 
-    train_dataset = TextualInversionDataset(
-        data_root=args.train_data_dir,
-        tokenizer=tokenizer,
-        size=args.resolution,
-        placeholder_token=args.placeholder_token,
-        repeats=args.repeats,
-        learnable_property=args.learnable_property,
-        center_crop=args.center_crop,
-        set="train",
-    )
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.train_batch_size, shuffle=True)
+noise_scheduler = FlaxDDPMScheduler(
+    beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+)
 
-    # Scheduler and math around the number of training steps.
-    overrode_max_train_steps = False
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-        overrode_max_train_steps = True
+from jax.tree_util import tree_map
 
-    # TODO: scheduler
-    # lr_scheduler = get_scheduler(
-    #     args.lr_scheduler,
-    #     optimizer=optimizer,
-    #     num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
-    #     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
-    # )
+num_train_samples = len(train_dataset)
 
-    # TODO: Keep vae and unet in eval model as we don't train these
-    # vae.eval()
-    # unet.eval()
+epochs = tqdm(range(num_train_epochs), desc=f"Epoch ... (1/{num_train_epochs})", position=0)
+for epoch in range(num_train_epochs):
+    train_metrics = []
+    for step, batch in enumerate(train_dataloader):
+        print('step: ', step)
+        batch = tree_map(lambda x: x.numpy(), batch)
+        batch = shard(batch)
+        state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
+        train_metric = jax_utils.unreplicate(train_metric)
+        # print(train_metrics)
+        # train_metrics.append(train_metric)
+        cur_step = epoch * (num_train_samples // train_batch_size) + step
+        #
+        if cur_step % 10 == 0 and cur_step > 0:
+            epochs.write(
+                f"Step... ({cur_step} | Loss: {train_metric['loss']})"
+            )
+            # train_metrics = []
 
-    # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader))
-    if overrode_max_train_steps:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    # Afterwards we recalculate our number of training epochs
-    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    # Train!
-    num_processes = 8 # TODO:
-    total_batch_size = args.train_batch_size * num_processes #* args.gradient_accumulation_steps
 
-    logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
-    logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    # logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+        # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
+        # latents = vae_outputs.latent_dist.sample(rng)
+        # latents = latents * 0.18215
+        # print('latents shape: ', latents.shape)
+        #
+        # # Sample noise that we'll add to the latents
+        # noise = jax.random.normal(rng, latents.shape) # torch.randn(latents.shape).to(latents.device)
+        # bsz = latents.shape[0]
+        # # Sample a random timestep for each image
+        # timesteps = jax.random.randint(
+        #     rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+        # )
+        # print('timesteps: ', timesteps)
+        #
+        # # Add noise to the latents according to the noise magnitude at each timestep
+        # # (this is the forward diffusion process)
+        # noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+        # print('noisy_latents shape: ', noisy_latents.shape)
+        #
+        # # Get the text embedding for conditioning
+        # encoder_hidden_states = text_encoder(batch["input_ids"].numpy())[0]
+        # print('encoder_hidden_states shape: ', encoder_hidden_states.shape)
+        #
+        # # Predict the noise residual
+        # noisy_latents = jnp.transpose(noisy_latents, (0, 3, 1, 2)) # (NHWC) -> (NCHW)
+        # unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False)
+        # noise_pred = unet_outputs.sample
+        # # noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states, train=False).sample
+        # print('noise_pred shape: ', noise_pred.shape)
+        #
+        # # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
 
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
-    progress_bar.set_description("Steps")
-    global_step = 0
 
-    for epoch in range(args.num_train_epochs):
-        # text_encoder.train() # TODO
-        for step, batch in enumerate(train_dataloader):
-            # Convert images to latent space
-            latents = vae.encode(batch["pixel_values"]).latent_dist.sample().detach()
-            latents = latents * 0.18215
 
-            # Sample noise that we'll add to the latents
-            noise = torch.randn(latents.shape).to(latents.device)
-            bsz = latents.shape[0]
-            # Sample a random timestep for each image
-            timesteps = torch.randint(
-                0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device
-            ).long()
 
-            # Add noise to the latents according to the noise magnitude at each timestep
-            # (this is the forward diffusion process)
-            noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-
-            # Get the text embedding for conditioning
-            encoder_hidden_states = text_encoder(batch["input_ids"])[0]
-
-            # Predict the noise residual
-            noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
-
-            # loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean() # TODO
-            # accelerator.backward(loss) # TODO
-
-            # Zero out the gradients for all token embeddings except the newly added
-            # embeddings for the concept, as we only want to optimize the concept embeddings
-            # TODO:
-            # if accelerator.num_processes > 1:
-            #     grads = text_encoder.module.get_input_embeddings().weight.grad
-            # else:
-            #     grads = text_encoder.get_input_embeddings().weight.grad
-            # Get the index for tokens that we want to zero the grads for
-            # index_grads_to_zero = torch.arange(len(tokenizer)) != placeholder_token_id
-            # grads.data[index_grads_to_zero, :] = grads.data[index_grads_to_zero, :].fill_(0)
-
-            # TODO
-            # optimizer.step()
-            # lr_scheduler.step()
-            # optimizer.zero_grad()
-
-            # Checks if the accelerator has performed an optimization step behind the scenes
-            # TODO
-            progress_bar.update(1)
-            global_step += 1
-            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
-            progress_bar.set_postfix(**logs)
-            # accelerator.log(logs, step=global_step)
-
-            if global_step >= args.max_train_steps:
-                break
