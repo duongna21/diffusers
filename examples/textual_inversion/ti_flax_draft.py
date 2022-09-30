@@ -447,7 +447,7 @@ def train_step(state, batch, rng):
     # # grad = jax.lax.pmean(grad, "batch")
     # new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
-    return state, metrics
+    return metrics
 
 
 # @jax.jit
@@ -473,7 +473,7 @@ for epoch in range(num_train_epochs):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
 
-        state, train_metric = train_step(state, batch, rng)
+        train_metric = train_step(state, batch, rng)
         print(train_metrics)
         # train_metrics.append(train_metric)
         # cur_step = epoch * (num_train_samples // train_batch_size) + step
