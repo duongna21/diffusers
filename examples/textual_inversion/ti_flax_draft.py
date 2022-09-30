@@ -404,7 +404,8 @@ from flax.training import train_state
 # Setup train state
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
-@jax.jit(donate_argnums=(0,))
+from functools import partial
+@partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, rng):
     # def loss_fn(params):
     params = text_encoder.params
@@ -447,7 +448,7 @@ def train_step(state, batch, rng):
     loss = (noise - noise_pred) ** 2
     loss = loss.mean()
     print('loss: ', loss)
-    return loss
+    return state, loss
 
         # return loss
 
@@ -484,7 +485,7 @@ for epoch in range(num_train_epochs):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
 
-        train_metric = train_step(state, batch, rng)
+        state, train_metric = train_step(state, batch, rng)
         print(train_metrics)
         # train_metrics.append(train_metric)
         # cur_step = epoch * (num_train_samples // train_batch_size) + step
