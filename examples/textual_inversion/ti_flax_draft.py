@@ -511,8 +511,9 @@ for epoch in range(num_train_epochs):
                 f"Step... ({cur_step} | Loss: {train_metric['loss']})"
             )
             # train_metrics = []
-
-
+            if jax.process_index() == 0:
+                params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
+                text_encoder.save_pretrained('.', params=params)
 
         # vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"].numpy(), deterministic=True, method=vae.encode)
         # latents = vae_outputs.latent_dist.sample(rng)
