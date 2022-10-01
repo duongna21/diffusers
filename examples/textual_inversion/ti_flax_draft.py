@@ -459,6 +459,7 @@ def train_step(state, batch, dropout_rng):
     # loss = loss_fn(state.params)
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
+    print('grad: ', grad)
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
