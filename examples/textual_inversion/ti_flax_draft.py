@@ -359,14 +359,6 @@ def decay_mask_fn(params):
     flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
     return traverse_util.unflatten_dict(flat_mask)
 
-optimizer = optax.adamw(
-    learning_rate=constant_scheduler,
-    b1=adam_beta1,
-    b2=adam_beta2,
-    eps=adam_epsilon,
-    weight_decay=weight_decay,
-    mask=decay_mask_fn,
-)
 
 # Keep vae and unet in eval model as we don't train these
 # vae.eval()
@@ -402,8 +394,68 @@ print(f"  Total optimization steps = {max_train_steps}")
 
 from flax.training import train_state
 # Setup train state
-state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
+# state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
+optimizer = optax.adamw(
+    learning_rate=constant_scheduler,
+    b1=adam_beta1,
+    b2=adam_beta2,
+    eps=adam_epsilon,
+    weight_decay=weight_decay,
+    mask=decay_mask_fn,
+)
+
+def print_tree(d, depth=0, print_value=False):
+    for k in d.keys():
+        if isinstance(d[k], dict):
+            print('  ' * depth, k)
+            print_tree(d[k], depth + 1, print_value)
+        else:
+            if print_value:
+                print('  ' * depth, k, d[k])
+            else:
+                print('  ' * depth, k)
+
+
+def compare_params(lhs, rhs, depth):
+    for k in lhs.keys():
+        if isinstance(lhs[k], dict):
+            print('  ' * depth, k)
+            compare_params(lhs[k], rhs[k], depth + 1)
+        else:
+            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
+
+from flax.core import frozen_dict
+
+def create_mask(params, label_fn):
+    def _map(params, mask, label_fn):
+        for k in params:
+            if label_fn(k):
+                mask[k] = 'zero'
+            else:
+                if isinstance(params[k], dict):
+                    mask[k] = {}
+                    _map(params[k], mask[k], label_fn)
+                else:
+                    mask[k] = 'token_emb'
+    mask = {}
+    _map(params, mask, label_fn)
+    return frozen_dict.freeze(mask)
+
+def zero_grads():
+    # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
+    def init_fn(_):
+        return ()
+    def update_fn(updates, state, params=None):
+        return jax.tree_map(jnp.zeros_like, updates), ()
+    return optax.GradientTransformation(init_fn, update_fn)
+
+tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
+                           create_mask(text_encoder.params, lambda s: s!='token_embedding'))
+
+state = train_state.TrainState.create(apply_fn=text_encoder.apply,
+                                      params=text_encoder.params,
+                                      tx=tx)
 from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
@@ -459,7 +511,8 @@ def train_step(state, batch, dropout_rng):
     # loss = loss_fn(state.params)
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
-    print('grad: ', tree_map(lambda x: x.shape, grad))
+    # print('grad: ', tree_map(lambda x: x.shape, grad))
+    print('grad: ', grad)
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
