@@ -419,7 +419,7 @@ def create_mask(params, label_fn):
                     mask[k] = 'zero'
     mask = {}
     _map(params, mask, label_fn)
-    return frozen_dict.freeze(mask)
+    return mask
 
 def zero_grads():
     # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
