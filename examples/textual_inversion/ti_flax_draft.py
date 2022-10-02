@@ -429,13 +429,13 @@ def zero_grads():
         return jax.tree_map(jnp.zeros_like, updates), ()
     return optax.GradientTransformation(init_fn, update_fn)
 
-tx = optax.multi_transform({'token_emb': optax.adam(0.1), 'zero': zero_grads()},
+tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
                            create_mask(text_encoder.params, lambda s: s=='token_embedding'))
 
 
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                       params=text_encoder.params,
-                                      tx=tx)
+                                      tx=optimizer)
 
 
 
