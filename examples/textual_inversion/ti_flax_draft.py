@@ -453,7 +453,7 @@ def zero_grads():
 tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
                            create_mask(text_encoder.params, lambda s: s!='token_embedding'))
 
-state = train_state.TrainState.create(apply_fn=text_encoder.apply,
+state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                       params=text_encoder.params,
                                       tx=tx)
 from functools import partial
