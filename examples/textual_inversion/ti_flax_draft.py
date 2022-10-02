@@ -406,6 +406,14 @@ optimizer = optax.adamw(
 
 from flax.core import frozen_dict
 
+def compare_params(lhs, rhs, depth):
+    for k in lhs.keys():
+        if isinstance(lhs[k], dict):
+            print('  ' * depth, k)
+            compare_params(lhs[k], rhs[k], depth + 1)
+        else:
+            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
+
 def create_mask(params, label_fn):
     def _map(params, mask, label_fn):
         for k in params:
@@ -435,7 +443,7 @@ tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
 
 state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                       params=text_encoder.params,
-                                      tx=optimizer)
+                                      tx=tx)
 
 
 
@@ -494,12 +502,13 @@ def train_step(state, batch, dropout_rng):
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
-    print('grad: ', tree_map(lambda x: x[-1].mean(), grad))
+    # print('grad: ', tree_map(lambda x: x[-1].mean(), grad))
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
     jax.profiler.save_device_memory_profile("memory.prof")
+    compare_params(state.params, new_state.params, 0)
     return new_state, metrics, new_dropout_rng
 
 # p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
