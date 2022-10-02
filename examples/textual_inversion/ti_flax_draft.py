@@ -442,7 +442,6 @@ with open("ahihi.txt", "w") as log:
                                               tx=tx)
     except Exception:
         traceback.print_exc(file=log)
-        continue
 
 
 
