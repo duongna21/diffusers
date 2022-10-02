@@ -405,26 +405,6 @@ optimizer = optax.adamw(
     mask=decay_mask_fn,
 )
 
-def print_tree(d, depth=0, print_value=False):
-    for k in d.keys():
-        if isinstance(d[k], dict):
-            print('  ' * depth, k)
-            print_tree(d[k], depth + 1, print_value)
-        else:
-            if print_value:
-                print('  ' * depth, k, d[k])
-            else:
-                print('  ' * depth, k)
-
-
-def compare_params(lhs, rhs, depth):
-    for k in lhs.keys():
-        if isinstance(lhs[k], dict):
-            print('  ' * depth, k)
-            compare_params(lhs[k], rhs[k], depth + 1)
-        else:
-            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
-
 from flax.core import frozen_dict
 
 def create_mask(params, label_fn):
@@ -459,7 +439,7 @@ except:
 try:
     state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                           params=text_encoder.params,
-                                          tx=tx)
+                                          tx=optimizer)
 except:
     print('state error')
 from functools import partial
