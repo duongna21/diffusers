@@ -450,12 +450,18 @@ def zero_grads():
         return jax.tree_map(jnp.zeros_like, updates), ()
     return optax.GradientTransformation(init_fn, update_fn)
 
-tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
-                           create_mask(text_encoder.params, lambda s: s!='token_embedding'))
+try:
+    tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
+                               create_mask(text_encoder.params, lambda s: s!='token_embedding'))
+except:
+    print('tx error')
 
-state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
-                                      params=text_encoder.params,
-                                      tx=tx)
+try:
+    state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
+                                          params=text_encoder.params,
+                                          tx=tx)
+except:
+    print('state error')
 from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
