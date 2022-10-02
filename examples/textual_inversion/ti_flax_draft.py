@@ -309,7 +309,7 @@ hyperparameters = {
     "learning_rate": 5e-04,
     "scale_lr": True,
     "max_train_steps": 3000,
-    "train_batch_size": 8,
+    "train_batch_size": 1,
     "seed": 42,
     "output_dir": "sd-concept-output"
 }
@@ -443,7 +443,6 @@ from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
-    # @jax.jit
     def loss_fn(params):
         # params = text_encoder.params
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
@@ -495,7 +494,7 @@ def train_step(state, batch, dropout_rng):
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
-    print('grad: ', tree_map(lambda x: x.mean(), grad))
+    print('grad: ', tree_map(lambda x: x.mean(-1), grad))
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
