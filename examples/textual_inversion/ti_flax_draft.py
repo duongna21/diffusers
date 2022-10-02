@@ -432,9 +432,19 @@ def zero_grads():
 tx = optax.multi_transform({'token_emb': optax.adam(0.1), 'zero': zero_grads()},
                            create_mask(text_encoder.params, lambda s: s=='token_embedding'))
 
-state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
-                                      params=text_encoder.params,
-                                      tx=tx)
+import traceback
+
+#This line opens a log file
+with open("ahihi.txt", "w") as log:
+    try:
+        state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
+                                              params=text_encoder.params,
+                                              tx=tx)
+    except Exception:
+        traceback.print_exc(file=log)
+        continue
+
+
 
 from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
