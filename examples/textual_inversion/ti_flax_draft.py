@@ -333,32 +333,6 @@ if scale_lr:
 #     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
 # )
 
-import optax
-
-constant_scheduler = optax.constant_schedule(0.0001)
-optimizer = optax.sgd(learning_rate=constant_scheduler)
-
-adam_beta1 = 0.9
-adam_beta2 = 0.999
-adam_epsilon = 1e-8
-weight_decay = 1e-2
-
-from flax import jax_utils, traverse_util
-def decay_mask_fn(params):
-    flat_params = traverse_util.flatten_dict(params)
-    # find out all LayerNorm parameters
-    layer_norm_candidates = ["layernorm", "layer_norm", "ln"]
-    layer_norm_named_params = set(
-        [
-            layer[-2:]
-            for layer_norm_name in layer_norm_candidates
-            for layer in flat_params.keys()
-            if layer_norm_name in "".join(layer).lower()
-        ]
-    )
-    flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
-    return traverse_util.unflatten_dict(flat_mask)
-
 
 # Keep vae and unet in eval model as we don't train these
 # vae.eval()
@@ -396,6 +370,31 @@ from flax.training import train_state
 # Setup train state
 # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
+import optax
+
+constant_scheduler = optax.constant_schedule(learning_rate)
+
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_epsilon = 1e-8
+weight_decay = 1e-2
+
+from flax import jax_utils, traverse_util
+def decay_mask_fn(params):
+    flat_params = traverse_util.flatten_dict(params)
+    # find out all LayerNorm parameters
+    layer_norm_candidates = ["layernorm", "layer_norm", "ln"]
+    layer_norm_named_params = set(
+        [
+            layer[-2:]
+            for layer_norm_name in layer_norm_candidates
+            for layer in flat_params.keys()
+            if layer_norm_name in "".join(layer).lower()
+        ]
+    )
+    flat_mask = {path: (path[-1] != "bias" and path[-2:] not in layer_norm_named_params) for path in flat_params}
+    return traverse_util.unflatten_dict(flat_mask)
+
 optimizer = optax.adamw(
     learning_rate=constant_scheduler,
     b1=adam_beta1,
@@ -411,13 +410,13 @@ def create_mask(params, label_fn):
     def _map(params, mask, label_fn):
         for k in params:
             if label_fn(k):
-                mask[k] = 'zero'
+                mask[k] = 'token_emb'
             else:
                 if isinstance(params[k], dict):
                     mask[k] = {}
                     _map(params[k], mask[k], label_fn)
                 else:
-                    mask[k] = 'token_emb'
+                    mask[k] = 'zero'
     mask = {}
     _map(params, mask, label_fn)
     return frozen_dict.freeze(mask)
@@ -430,18 +429,13 @@ def zero_grads():
         return jax.tree_map(jnp.zeros_like, updates), ()
     return optax.GradientTransformation(init_fn, update_fn)
 
-try:
-    tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
-                               create_mask(text_encoder.params, lambda s: s!='token_embedding'))
-except:
-    print('tx error')
+tx = optax.multi_transform({'token_emb': optax.adam(0.1), 'zero': zero_grads()},
+                           create_mask(text_encoder.params, lambda s: s=='token_embedding'))
 
-try:
-    state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
-                                          params=text_encoder.params,
-                                          tx=optimizer)
-except:
-    print('state error')
+state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
+                                      params=text_encoder.params,
+                                      tx=tx)
+
 from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
