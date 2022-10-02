@@ -432,16 +432,10 @@ def zero_grads():
 tx = optax.multi_transform({'token_emb': optax.adam(0.1), 'zero': zero_grads()},
                            create_mask(text_encoder.params, lambda s: s=='token_embedding'))
 
-import traceback
 
-#This line opens a log file
-with open("ahihi.txt", "w") as log:
-    try:
-        state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
-                                              params=text_encoder.params,
-                                              tx=tx)
-    except Exception:
-        traceback.print_exc(file=log)
+state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
+                                      params=text_encoder.params,
+                                      tx=tx)
 
 
 
@@ -501,7 +495,7 @@ def train_step(state, batch, dropout_rng):
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
-    # print('grad: ', tree_map(lambda x: x[0][0][0][0], grad))
+    print('grad: ', tree_map(lambda x: x.mean(), grad))
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
