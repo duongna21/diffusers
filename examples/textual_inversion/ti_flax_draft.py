@@ -306,7 +306,7 @@ def create_dataloader(train_batch_size=1):
     return torch.utils.data.DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
 
 hyperparameters = {
-    "learning_rate": 5e-04,
+    "learning_rate": 10,
     "scale_lr": True,
     "max_train_steps": 3000,
     "train_batch_size": 1,
