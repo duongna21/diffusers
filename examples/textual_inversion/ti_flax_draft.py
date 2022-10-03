@@ -162,20 +162,20 @@ print('Loaded text encoder sucessfully!')
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
-_, state_vae = FlaxAutoencoderKL.from_pretrained(
+vae, state_vae = FlaxAutoencoderKL.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
 )
 # vae.params = state_vae
 # def vae():
 
 #     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
-vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
+# vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 print('Loaded autoencoder sucessfully!')
-_, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
 )
 # unet.params = state_unet
-unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
+# unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
 print('Loaded unet sucessfully!')
 
 from torchvision import transforms
