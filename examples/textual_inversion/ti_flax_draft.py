@@ -157,13 +157,19 @@ placeholder_token_id = tokenizer.convert_tokens_to_ids(placeholder_token)
 text_encoder = FlaxCLIPTextModel.from_pretrained(
     os.path.join(pretrained_model_name_or_path, "text_encoder"), use_auth_token=True, from_pt=True
 )
+text_encoder = FlaxCLIPTextModel.from_pretrained(
+    'text_encoder_flax'
+)
 print('Loaded text encoder sucessfully!')
 
 # _, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     pretrained_model_name_or_path, subfolder="vae", use_auth_token=True, from_pt=True
 # )
+# vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+# )
 vae, state_vae = FlaxAutoencoderKL.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "vae"), use_auth_token=True, from_pt=True
+    'vae_flax'
 )
 # vae.params = state_vae
 # def vae():
@@ -171,8 +177,11 @@ vae, state_vae = FlaxAutoencoderKL.from_pretrained(
 #     return FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 # vae = FlaxAutoencoderKL.from_config(pretrained_model_name_or_path, subfolder="vae")
 print('Loaded autoencoder sucessfully!')
+# unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+#     os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+# )
 unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-    os.path.join(pretrained_model_name_or_path, "unet"), use_auth_token=True, from_pt=True
+    'unet_flax'
 )
 # unet.params = state_unet
 # unet = FlaxUNet2DConditionModel.from_config(pretrained_model_name_or_path, subfolder="unet")
