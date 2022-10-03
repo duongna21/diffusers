@@ -446,6 +446,8 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                       tx=tx)
 
 
+from jax_smi import initialise_tracking
+initialise_tracking()
 
 from functools import partial
 @partial(jax.jit, donate_argnums=(0,))
