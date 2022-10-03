@@ -446,11 +446,9 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                       tx=tx)
 
 
-from jax_smi import initialise_tracking
-initialise_tracking()
 
 from functools import partial
-@partial(jax.jit, donate_argnums=(0,))
+# @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
     def loss_fn(params):
@@ -503,6 +501,10 @@ def train_step(state, batch, dropout_rng):
     # loss = loss_fn(state.params)
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
+    token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
+    placeholder_token_grad = token_embedding_grad[placeholder_token_id]
+    grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
+    grad['text_model']['embeddings']['token_embedding']['embedding'].at(placeholder_token_id).set(placeholder_token_grad)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
     # print('grad: ', tree_map(lambda x: x[-1].mean(), grad))
     # grad = jax.lax.pmean(grad, "batch")
