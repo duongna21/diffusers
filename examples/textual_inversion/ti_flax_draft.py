@@ -308,8 +308,8 @@ def create_dataloader(train_batch_size=1):
 hyperparameters = {
     "learning_rate": 10,
     "scale_lr": True,
-    "max_train_steps": 3000,
-    "train_batch_size": 1,
+    "max_train_steps": 3000/4,
+    "train_batch_size": 8,
     "seed": 42,
     "output_dir": "sd-concept-output"
 }
@@ -503,7 +503,7 @@ def train_step(state, batch, dropout_rng):
     loss, grad = grad_fn(state.params)
     token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
     placeholder_token_grad = token_embedding_grad[placeholder_token_id]
-    print(token_embedding_grad[placeholder_token_id-1:placeholder_token_id+1].mean(-1))
+    print(token_embedding_grad[placeholder_token_id-1:placeholder_token_id+2].mean(-1))
     grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
     grad['text_model']['embeddings']['token_embedding']['embedding'].at[placeholder_token_id].set(placeholder_token_grad)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
