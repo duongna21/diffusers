@@ -544,8 +544,9 @@ for epoch in range(num_train_epochs):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
         # batch = shard(batch)
-        state, train_metric, rng = train_step(state, batch, rng)
         jax.profiler.save_device_memory_profile("memory_2.prof")
+        state, train_metric, rng = train_step(state, batch, rng)
+
         # train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
         # train_metrics.append(train_metric)
