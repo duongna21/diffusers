@@ -340,7 +340,7 @@ if scale_lr:
 # train=False
 
 num_update_steps_per_epoch = math.ceil(len(train_dataloader))
-max_train_steps = 3000
+max_train_steps = hyperparameters['max_train_steps']
 # Afterwards we recalculate our number of training epochs
 num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
 
