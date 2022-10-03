@@ -412,7 +412,7 @@ def compare_params(lhs, rhs, depth):
             print('  ' * depth, k)
             compare_params(lhs[k], rhs[k], depth + 1)
         else:
-            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
+            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k][-1] - rhs[k][-1])))
 
 def create_mask(params, label_fn):
     def _map(params, mask, label_fn):
