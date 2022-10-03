@@ -451,7 +451,6 @@ from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
-    @jax.jit
     def loss_fn(params):
         # params = text_encoder.params
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
