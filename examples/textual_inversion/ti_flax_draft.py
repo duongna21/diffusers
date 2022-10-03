@@ -448,7 +448,7 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
 
 
 from functools import partial
-# @partial(jax.jit, donate_argnums=(0,))
+@partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
     def loss_fn(params):
@@ -508,7 +508,7 @@ def train_step(state, batch, dropout_rng):
     metrics = {"loss": loss}
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
     jax.profiler.save_device_memory_profile("memory.prof")
-    compare_params(state.params, new_state.params, 0)
+    # compare_params(state.params, new_state.params, 0)
     return new_state, metrics, new_dropout_rng
 
 # p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
