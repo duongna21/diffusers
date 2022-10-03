@@ -451,6 +451,7 @@ from functools import partial
 # @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+    @jax.jit
     def loss_fn(params):
         # params = text_encoder.params
         vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
@@ -503,7 +504,7 @@ def train_step(state, batch, dropout_rng):
     loss, grad = grad_fn(state.params)
     token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
     placeholder_token_grad = token_embedding_grad[placeholder_token_id]
-    print(token_embedding_grad[placeholder_token_id-1:placeholder_token_id+2].mean(-1))
+    print(token_embedding_grad.mean(-1))
     grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
     grad['text_model']['embeddings']['token_embedding']['embedding'].at[placeholder_token_id].set(placeholder_token_grad)
     # print('grad: ', tree_map(lambda x: x.shape, grad))
