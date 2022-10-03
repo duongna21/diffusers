@@ -286,17 +286,19 @@ def resize_token_embeddings(model, new_num_tokens):
 
     new_embeddings = initializer(rng, (new_num_tokens, emb_dim))
     new_embeddings = new_embeddings.at[:old_num_tokens].set(old_embeddings)
+    new_embeddings = new_embeddings.at[placeholder_token_id].set(new_embeddings[initializer_token_id])
     params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
+
     model.params = params
 
 # print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
 resize_token_embeddings(text_encoder, len(tokenizer))
 # print(text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'].shape)
 #
-# print(placeholder_token_id, initializer_token_id)
-# token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
+print('placeholder_token_id, initializer_token_id: ', placeholder_token_id, initializer_token_id)
+token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
 # token_embeds = token_embeds.at[placeholder_token_id].set(token_embeds[initializer_token_id])
-# print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
+print(token_embeds[placeholder_token_id] - token_embeds[initializer_token_id])
 
 train_dataset = TextualInversionDataset(
       data_root=save_path,
@@ -511,13 +513,12 @@ def train_step(state, batch, dropout_rng):
     grad_fn = jax.value_and_grad(loss_fn)
     loss, grad = grad_fn(state.params)
     token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
+    print(token_embedding_grad.shape, placeholder_token_id)
     placeholder_token_grad = token_embedding_grad[placeholder_token_id]
     # print('placeholder_token_grad: ', placeholder_token_grad)
     print('before zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
 
-    grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
-    print('after zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
-    grad['text_model']['embeddings']['token_embedding']['embedding'].at[placeholder_token_id].set(placeholder_token_grad)
+    grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
     print('after set back last grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
     # print('batch["input_ids"][0]: ', batch["input_ids"][0])
     # print(token_embedding_grad[batch["input_ids"][0]][:10])
@@ -527,7 +528,7 @@ def train_step(state, batch, dropout_rng):
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
-    jax.profiler.save_device_memory_profile("memory.prof")
+    # jax.profiler.save_device_memory_profile("memory.prof")
     # compare_params(state.params, new_state.params, 0)
     return new_state, metrics, new_dropout_rng
 
