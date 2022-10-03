@@ -306,7 +306,7 @@ def create_dataloader(train_batch_size=1):
     return torch.utils.data.DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True)
 
 hyperparameters = {
-    "learning_rate": 10,
+    "learning_rate": 5e-4,
     "scale_lr": True,
     "max_train_steps": 3000/4,
     "train_batch_size": 8,
@@ -412,7 +412,7 @@ def compare_params(lhs, rhs, depth):
             print('  ' * depth, k)
             compare_params(lhs[k], rhs[k], depth + 1)
         else:
-            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k][-2] - rhs[k][-2])))
+            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
 
 def create_mask(params, label_fn):
     def _map(params, mask, label_fn):
