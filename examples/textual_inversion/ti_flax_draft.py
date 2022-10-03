@@ -507,7 +507,8 @@ def train_step(state, batch, dropout_rng):
 
     grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
     grad['text_model']['embeddings']['token_embedding']['embedding'].at[placeholder_token_id].set(placeholder_token_grad)
-    print(token_embedding_grad[placeholder_token_id - 5:placeholder_token_id + 1].mean(-1))
+    print('batch["input_ids"][0]: ', batch["input_ids"][0])
+    print(token_embedding_grad[batch["input_ids"][0]].mean(-1))
     # print('grad: ', tree_map(lambda x: x.shape, grad))
     # print('grad: ', tree_map(lambda x: x[-1].mean(), grad))
     # grad = jax.lax.pmean(grad, "batch")
