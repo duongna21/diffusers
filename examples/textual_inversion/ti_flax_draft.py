@@ -504,12 +504,12 @@ def train_step(state, batch, dropout_rng):
     token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
     placeholder_token_grad = token_embedding_grad[placeholder_token_id]
     # print('placeholder_token_grad: ', placeholder_token_grad)
-    print('before zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'].mean())
+    print('before zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
 
     grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad)
-    print('after zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'].mean())
+    print('after zero grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
     grad['text_model']['embeddings']['token_embedding']['embedding'].at[placeholder_token_id].set(placeholder_token_grad)
-    print('after set back last grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'].mean())
+    print('after set back last grad: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id].mean())
     # print('batch["input_ids"][0]: ', batch["input_ids"][0])
     # print(token_embedding_grad[batch["input_ids"][0]][:10])
     # print('grad: ', tree_map(lambda x: x.shape, grad))
@@ -519,7 +519,7 @@ def train_step(state, batch, dropout_rng):
     metrics = {"loss": loss}
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
     jax.profiler.save_device_memory_profile("memory.prof")
-    compare_params(state.params, new_state.params, 0)
+    # compare_params(state.params, new_state.params, 0)
     return new_state, metrics, new_dropout_rng
 
 # p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
