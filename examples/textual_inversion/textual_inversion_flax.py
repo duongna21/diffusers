@@ -569,7 +569,7 @@ def main():
 
             return loss
 
-        grad_fn = jax.value_and_grad(compute_loss)
+        grad_fn = jax.value_and_grad(compute_loss, latents)
         loss, grad = grad_fn(state.params)
         grad = jax.lax.pmean(grad, "batch")
 
