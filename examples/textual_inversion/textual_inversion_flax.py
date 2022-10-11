@@ -480,7 +480,7 @@ def main():
     )
 
     def collate_fn(batch):
-        print(batch)
+        # print(batch)
         # pixel_values = torch.stack([example[0] for example in examples])
         # input_ids = torch.tensor([example[1] for example in examples])
         #
