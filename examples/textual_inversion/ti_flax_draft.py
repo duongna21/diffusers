@@ -467,7 +467,7 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
 
 
 from functools import partial
-# @partial(jax.jit, donate_argnums=(0,))
+@partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
     def loss_fn(params):
