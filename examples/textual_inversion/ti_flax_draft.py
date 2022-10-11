@@ -584,6 +584,7 @@ for epoch in range(num_train_epochs):
         batch = shard(batch)
         jax.profiler.save_device_memory_profile("memory_2.prof")
         state, train_metric, rng = p_train_step(state, batch, dropout_rngs)
+        print('\ndone p_train_eval!')
 
         # train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
