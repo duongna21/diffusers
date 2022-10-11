@@ -543,6 +543,7 @@ def train_step(state, batch, dropout_rng):
     # grad = jax.lax.pmean(grad, "batch")
     new_state = state.apply_gradients(grads=grad)
     metrics = {"loss": loss}
+    print('applied gradient')
     # metrics = jax.lax.pmean({"loss": loss}, axis_name="batch")
     # jax.profiler.save_device_memory_profile("memory.prof")
     # compare_params(state.params, new_state.params, 0)

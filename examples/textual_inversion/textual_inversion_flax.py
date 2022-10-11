@@ -513,9 +513,52 @@ def main():
         # mask=decay_mask_fn,
     )
 
+    def compare_params(lhs, rhs, depth):
+        for k in lhs.keys():
+        if isinstance(lhs[k], dict):
+            print('  ' * depth, k)
+            compare_params(lhs[k], rhs[k], depth + 1)
+        else:
+            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
+
+    def create_mask(params, label_fn):
+        def _map(params, mask, label_fn):
+            for k in params:
+                if label_fn(k):
+                    mask[k] = 'token_emb'
+                else:
+                    if isinstance(params[k], dict):
+                        mask[k] = {}
+                        _map(params[k], mask[k], label_fn)
+                    else:
+                        mask[k] = 'zero'
+
+        mask = {}
+        _map(params, mask, label_fn)
+        return mask
+
+
+    def zero_grads():
+        # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
+        def init_fn(_):
+            return ()
+
+        def update_fn(updates, state, params=None):
+            return jax.tree_map(jnp.zeros_like, updates), ()
+
+        return optax.GradientTransformation(init_fn, update_fn)
+
+
+    tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
+                               create_mask(text_encoder.params, lambda s: s == 'token_embedding'))
+
+    state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
+                                          params=text_encoder.params,
+                                          tx=tx)
+
     noise_scheduler = FlaxDDPMScheduler(
-        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
-    )
+            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+        )
 
     #
     # # Enable tensorboard only on the master node
@@ -540,7 +583,7 @@ def main():
     dropout_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Setup train state
-    state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
+    # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
     # Define gradient update step fn
     def train_step(state, batch, dropout_rng):
