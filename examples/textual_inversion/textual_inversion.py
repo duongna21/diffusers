@@ -438,6 +438,7 @@ def main():
         center_crop=args.center_crop,
         set="train",
     )
+
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.train_batch_size, shuffle=True)
 
     # Scheduler and math around the number of training steps.
