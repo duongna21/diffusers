@@ -545,14 +545,12 @@ def main():
     # Define gradient update step fn
     def train_step(state, batch, dropout_rng):
         dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+        vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
+        latents = vae_outputs.latent_dist.sample(rng)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+        latents = latents * 0.18215
 
-        def compute_loss(params):
-            print(batch["pixel_values"].shape)
-            vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
-            latents = vae_outputs.latent_dist.sample(rng)
-            latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
-            latents = latents * 0.18215
-
+        def compute_loss(params, latents):
             noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
             # print('noise sample: ',  noise[0][0][0])
             bsz = latents.shape[0]
