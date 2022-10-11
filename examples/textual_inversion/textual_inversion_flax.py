@@ -479,13 +479,12 @@ def main():
         set="train",
     )
 
-    def collate_fn(batch):
-        print(batch)
-        # pixel_values = torch.stack([example[0] for example in examples])
-        # input_ids = torch.tensor([example[1] for example in examples])
-        #
-        # batch = {"pixel_values": pixel_values, "labels": labels}
-        batch = {k: v.numpy() for k, v in batch[0].items()}
+    def collate_fn(examples):
+        pixel_values = torch.stack([example['pixel_values'] for example in examples])
+        input_ids = torch.tensor([example['input_ids'] for example in examples])
+
+        batch = {"pixel_values": pixel_values, "input_ids": input_ids}
+        batch = {k: v.numpy() for k, v in batch.items()}
 
         return batch
 
