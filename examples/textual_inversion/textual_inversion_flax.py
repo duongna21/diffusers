@@ -485,7 +485,7 @@ def main():
         # input_ids = torch.tensor([example[1] for example in examples])
         #
         # batch = {"pixel_values": pixel_values, "labels": labels}
-        batch = {k: v.numpy() for k, v in batch.items()}
+        batch = {k: v.numpy() for k, v in batch[0].items()}
 
         return batch
 
