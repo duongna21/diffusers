@@ -22,6 +22,8 @@ from diffusers.optimization import get_scheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
+from torchvision import transforms
+
 from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer
 
