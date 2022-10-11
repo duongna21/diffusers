@@ -548,6 +548,7 @@ def main():
         dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
 
         def compute_loss(params):
+            print(batch["pixel_values"].shape)
             vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
             latents = vae_outputs.latent_dist.sample(rng)
             latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
