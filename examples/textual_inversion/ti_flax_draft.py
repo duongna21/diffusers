@@ -465,7 +465,7 @@ state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
 
 
 from functools import partial
-@partial(jax.jit, donate_argnums=(0,))
+# @partial(jax.jit, donate_argnums=(0,))
 def train_step(state, batch, dropout_rng):
     dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
     def loss_fn(params):
@@ -546,13 +546,13 @@ def train_step(state, batch, dropout_rng):
     # compare_params(state.params, new_state.params, 0)
     return new_state, metrics, new_dropout_rng
 
-# p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
+p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
 from flax.jax_utils import pad_shard_unpad, unreplicate
 from flax.training.common_utils import get_metrics, onehot, shard
 
 
-# state = jax_utils.replicate(state)
+state = jax_utils.replicate(state)
 
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
 # @jax.jit
@@ -578,9 +578,9 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
-        # batch = shard(batch)
+        batch = shard(batch)
         jax.profiler.save_device_memory_profile("memory_2.prof")
-        state, train_metric, rng = train_step(state, batch, rng)
+        state, train_metric, rng = p_train_step(state, batch, dropout_rngs)
 
         # train_metric = jax_utils.unreplicate(train_metric)
         # print(train_metrics)
