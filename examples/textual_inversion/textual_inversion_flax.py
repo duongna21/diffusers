@@ -613,7 +613,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            state, train_metric = p_train_step(state, batch)
+            state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
