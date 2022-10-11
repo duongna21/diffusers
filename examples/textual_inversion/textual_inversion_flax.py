@@ -409,8 +409,6 @@ def main():
     # Set the verbosity to info of the Transformers logger (on main process only):
     # logger.info(f"Training/evaluation parameters {training_args}")
 
-    # set seed for random transforms and torch dataloaders
-    set_seed(args.seed)
 
     # Handle the repository creation
     # if training_args.push_to_hub:
