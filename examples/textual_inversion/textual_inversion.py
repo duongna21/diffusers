@@ -395,9 +395,6 @@ def main():
         args.pretrained_model_name_or_path, subfolder="unet", use_auth_token=args.use_auth_token
     )
     print('Loaded unet sucessfully!')
-    print('\nWait 20s')
-    import time
-    time.sleep(20)
 
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder.resize_token_embeddings(len(tokenizer))
@@ -470,6 +467,10 @@ def main():
     # Move vae and unet to device
     vae.to(accelerator.device)
     unet.to(accelerator.device)
+
+    print('\nWait 20s')
+    import time
+    time.sleep(20)
 
     # Keep vae and unet in eval model as we don't train these
     vae.eval()
