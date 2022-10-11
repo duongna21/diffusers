@@ -383,12 +383,17 @@ def main():
     text_encoder = CLIPTextModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="text_encoder", use_auth_token=args.use_auth_token
     )
+    print('Loaded text encoder sucessfully!')
+
     vae = AutoencoderKL.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="vae", use_auth_token=args.use_auth_token
     )
+    print('Loaded vae sucessfully!')
+
     unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", use_auth_token=args.use_auth_token
     )
+    print('Loaded unet sucessfully!')
 
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder.resize_token_embeddings(len(tokenizer))
