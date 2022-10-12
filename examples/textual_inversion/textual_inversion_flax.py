@@ -563,7 +563,7 @@ def main():
                 print('  ' * depth, k)
                 compare_params(lhs[k], rhs[k], depth + 1)
             else:
-                print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
+                print('  ' * depth, k, jnp.sum(jnp.abs(lhs[k] - rhs[k])))
 
     # Define gradient update step fn
     def train_step(state, batch, train_rng):
