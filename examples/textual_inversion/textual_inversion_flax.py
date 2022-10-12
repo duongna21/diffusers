@@ -553,14 +553,6 @@ def main():
     # Initialize our training
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    def compare_params(lhs, rhs, depth):
-        for k in lhs.keys():
-            if isinstance(lhs[k], dict):
-                print('  ' * depth, k)
-                compare_params(lhs[k], rhs[k], depth + 1)
-            else:
-                print('  ' * depth, k, jnp.sum(jnp.abs(lhs[k] - rhs[k])))
-
     # Define gradient update step fn
     def train_step(state, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
@@ -603,7 +595,6 @@ def main():
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
-        compare_params(state.params, new_state.params, 0)
         return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
