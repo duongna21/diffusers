@@ -587,7 +587,7 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        grad = jax.lax.pmean(grad, "batch")
+        # grad = jax.lax.pmean(grad, "batch")
 
         token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
         print("token_embedding_grad.shape, placeholder_token_id: ", token_embedding_grad.shape, placeholder_token_id)
@@ -614,7 +614,7 @@ def main():
         new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
-        metrics = jax.lax.pmean(metrics, axis_name="batch")
+        # metrics = jax.lax.pmean(metrics, axis_name="batch")
 
         return new_state, metrics, new_train_rng
 
