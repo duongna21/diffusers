@@ -595,35 +595,18 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        # grad = jax.lax.pmean(grad, "batch")
+        grad = jax.lax.pmean(grad, "batch")
 
         token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
-        print("token_embedding_grad.shape, placeholder_token_id: ", token_embedding_grad.shape, placeholder_token_id)
         placeholder_token_grad = token_embedding_grad[placeholder_token_id]
-
-        print('before zero grad: ',
-              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).mean())
-        print('before zero grad: ', jnp.abs(
-            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).mean(-1))
-        print('before zero grad: ',
-              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
-                  -1))
 
         grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad).at[
             placeholder_token_id].set(placeholder_token_grad)
-        print('\nafter set back last grad: ',
-              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).sum())
-        print('after set back last grad: ', jnp.abs(
-            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).sum(-1))
-        print('before zero grad: ',
-              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
-                  -1))
-        print('non-zero indices: ', jnp.argwhere(jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding']).sum(-1) > 0))
 
         new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
-        # metrics = jax.lax.pmean(metrics, axis_name="batch")
+        metrics = jax.lax.pmean(metrics, axis_name="batch")
         compare_params(state.params, new_state.params, 0)
         return new_state, metrics, new_train_rng
 
@@ -631,7 +614,7 @@ def main():
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    # state = jax_utils.replicate(state)
+    state = jax_utils.replicate(state)
 
     # Train!
     total_batch_size = args.train_batch_size * jax.local_device_count()
@@ -662,9 +645,9 @@ def main():
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
         for batch in train_dataloader:
-            # batch = shard(batch)
-            # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
-            state, train_metric, rng = train_step(state, batch, rng)
+            batch = shard(batch)
+            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
+            # state, train_metric, rng = train_step(state, batch, rng)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
