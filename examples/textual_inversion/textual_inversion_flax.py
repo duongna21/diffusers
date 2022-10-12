@@ -614,7 +614,7 @@ def main():
         print('\nafter set back last grad: ',
               jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).sum())
         print('after set back last grad: ', jnp.abs(
-            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).mean(-1))
+            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).sum(-1))
         print('before zero grad: ',
               jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
                   -1))
