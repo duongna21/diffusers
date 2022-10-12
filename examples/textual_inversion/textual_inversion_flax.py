@@ -510,7 +510,6 @@ def main():
         b2=args.adam_beta2,
         eps=args.adam_epsilon,
         weight_decay=args.adam_weight_decay,
-        # mask=decay_mask_fn,
     )
 
     def compare_params(lhs, rhs, depth):
@@ -666,7 +665,7 @@ def main():
 
         train_step_progress_bar.close()
         epochs.write(
-            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate:"
+            f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']}, Learning Rate:"
             f" {train_metric['learning_rate']})"
         )
 
