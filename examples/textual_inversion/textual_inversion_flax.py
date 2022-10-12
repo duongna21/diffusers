@@ -655,8 +655,7 @@ def main():
 
         train_step_progress_bar.close()
         epochs.write(
-            f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']}, Learning Rate:"
-            f" {train_metric['learning_rate']})"
+            f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})"
         )
 
         # Create the pipeline using using the trained modules and save it.
