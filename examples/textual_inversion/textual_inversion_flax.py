@@ -512,14 +512,6 @@ def main():
         weight_decay=args.adam_weight_decay,
     )
 
-    def compare_params(lhs, rhs, depth):
-        for k in lhs.keys():
-        if isinstance(lhs[k], dict):
-            print('  ' * depth, k)
-            compare_params(lhs[k], rhs[k], depth + 1)
-        else:
-            print('  ' * depth, k, jnp.mean(jnp.abs(lhs[k] - rhs[k])))
-
     def create_mask(params, label_fn):
         def _map(params, mask, label_fn):
             for k in params:
@@ -548,8 +540,8 @@ def main():
         return optax.GradientTransformation(init_fn, update_fn)
 
 
-    tx = optax.multi_transform({'token_emb': optimizer, 'zero': zero_grads()},
-                               create_mask(text_encoder.params, lambda s: s == 'token_embedding'))
+    tx = optax.multi_transform({"token_emb": optimizer, "zero": zero_grads()},
+                               create_mask(text_encoder.params, lambda s: s=="token_embedding"))
 
     state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
                                           params=text_encoder.params,
@@ -558,25 +550,6 @@ def main():
     noise_scheduler = FlaxDDPMScheduler(
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
         )
-
-    #
-    # # Enable tensorboard only on the master node
-    # has_tensorboard = is_tensorboard_available()
-    # if has_tensorboard and jax.process_index() == 0:
-    #     try:
-    #         from flax.metrics.tensorboard import SummaryWriter
-    #
-    #         summary_writer = SummaryWriter(log_dir=Path(training_args.output_dir))
-    #     except ImportError as ie:
-    #         has_tensorboard = False
-    #         logger.warning(
-    #             f"Unable to display metrics through TensorBoard because some package are not installed: {ie}"
-    #         )
-    # else:
-    #     logger.warning(
-    #         "Unable to display metrics through TensorBoard because the package is not installed: "
-    #         "Please run pip install tensorboard to enable."
-    #     )
 
     # Initialize our training
     dropout_rngs = jax.random.split(rng, jax.local_device_count())
@@ -595,9 +568,7 @@ def main():
             latents = latents * 0.18215
 
             noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
-            # print('noise sample: ',  noise[0][0][0])
             bsz = latents.shape[0]
-            # Sample a random timestep for each image
             timesteps = jax.random.randint(
                 rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
             )
@@ -615,6 +586,28 @@ def main():
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
         grad = jax.lax.pmean(grad, "batch")
+
+        token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
+        print("token_embedding_grad.shape, placeholder_token_id: ", token_embedding_grad.shape, placeholder_token_id)
+        placeholder_token_grad = token_embedding_grad[placeholder_token_id]
+
+        print('before zero grad: ',
+              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).mean())
+        print('before zero grad: ', jnp.abs(
+            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).mean(-1))
+        print('before zero grad: ',
+              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
+                  -1))
+
+        grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad).at[
+            placeholder_token_id].set(placeholder_token_grad)
+        print('\nafter set back last grad: ',
+              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).mean())
+        print('after set back last grad: ', jnp.abs(
+            grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).mean(-1))
+        print('before zero grad: ',
+              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
+                  -1))
 
         new_state = state.apply_gradients(grads=grad)
 
