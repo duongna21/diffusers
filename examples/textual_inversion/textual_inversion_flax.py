@@ -653,7 +653,7 @@ def main():
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
         for batch in train_dataloader:
-            # batch = shard(batch)
+            batch = shard(batch)
             state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
             train_metrics.append(train_metric)
 
