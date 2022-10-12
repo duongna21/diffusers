@@ -677,9 +677,7 @@ def main():
 
             pipeline.save_pretrained(args.output_dir, params={"text_encoder": text_encoder.params,
                                                               "vae": state_vae,
-                                                              "unet": state_unet,
-                                                              "scheduler": scheduler.params,
-                                                              "safety_checker":safety_checker.params})
+                                                              "unet": state_unet})
             # Also save the newly trained embeddings
             learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
             learned_embeds_dict = {args.placeholder_token: torch.tensor(np.array(learned_embeds))}
