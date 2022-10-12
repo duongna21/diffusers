@@ -555,7 +555,7 @@ from flax.jax_utils import pad_shard_unpad, unreplicate
 from flax.training.common_utils import get_metrics, onehot, shard
 
 
-state = jax_utils.replicate(state)
+# state = jax_utils.replicate(state)
 
 dropout_rngs = jax.random.split(rng, jax.local_device_count())
 # @jax.jit
