@@ -660,20 +660,7 @@ def main():
 
         # Create the pipeline using using the trained modules and save it.
         if jax.process_index() == 0:
-            pipeline = FlaxStableDiffusionPipeline(
-                text_encoder=text_encoder,
-                vae=vae,
-                unet=unet,
-                tokenizer=tokenizer,
-                scheduler=FlaxPNDMScheduler(
-                    beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
-                ),
-                safety_checker=FlaxStableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker", from_pt=True),
-                feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
-            )
-
-            pipeline.save_pretrained(args.output_dir)
-            # Also save the newly trained embeddings
+            # Save the newly trained embeddings
             learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
             learned_embeds_dict = {args.placeholder_token: torch.tensor(np.array(learned_embeds))}
             torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
