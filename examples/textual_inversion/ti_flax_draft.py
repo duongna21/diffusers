@@ -581,7 +581,7 @@ for epoch in range(num_train_epochs):
     for step, batch in enumerate(train_dataloader):
         print('step: ', step)
         batch = tree_map(lambda x: x.numpy(), batch)
-        batch = shard(batch)
+        # batch = shard(batch)
         jax.profiler.save_device_memory_profile("memory_2.prof")
         # state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
         state, train_metric, rng = train_step(state, batch, rng)
