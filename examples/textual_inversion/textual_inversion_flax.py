@@ -618,7 +618,7 @@ def main():
         print('before zero grad: ',
               jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][:10]).mean(
                   -1))
-        print('non-zero indices: ', jnp.argwhere(grad['text_model']['embeddings']['token_embedding']['embedding'].sum(-1) > 0))
+        print('non-zero indices: ', jnp.argwhere(jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding']).sum(-1) > 0))
 
         new_state = state.apply_gradients(grads=grad)
 
