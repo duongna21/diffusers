@@ -669,37 +669,6 @@ def main():
             f" {train_metric['learning_rate']})"
         )
 
-        # ======================== Evaluating ==============================
-        # eval_metrics = []
-        # eval_steps = len(eval_dataset) // eval_batch_size
-        # eval_step_progress_bar = tqdm(total=eval_steps, desc="Evaluating...", position=2, leave=False)
-        # for batch in eval_loader:
-        #     # Model forward
-        #     metrics = pad_shard_unpad(p_eval_step, static_return=True)(
-        #         state.params, batch, min_device_batch=per_device_eval_batch_size
-        #     )
-        #     eval_metrics.append(metrics)
-        #
-        #     eval_step_progress_bar.update(1)
-        #
-        # # normalize eval metrics
-        # eval_metrics = get_metrics(eval_metrics)
-        # eval_metrics = jax.tree_map(jnp.mean, eval_metrics)
-
-        # Print metrics and update progress bar
-        # eval_step_progress_bar.close()
-        # desc = (
-        #     f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {round(eval_metrics['loss'].item(), 4)} | "
-        #     f"Eval Accuracy: {round(eval_metrics['accuracy'].item(), 4)})"
-        # )
-        # epochs.write(desc)
-        # epochs.desc = desc
-
-        # Save metrics
-        # if has_tensorboard and jax.process_index() == 0:
-        #     cur_step = epoch * (len(train_dataset) // train_batch_size)
-        #     write_metric(summary_writer, train_metrics, eval_metrics, train_time, cur_step)
-
         # save checkpoint after each epoch and push checkpoint to the hub
         if jax.process_index() == 0:
             params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
