@@ -1,4 +1,3 @@
-import flax
 import argparse
 import itertools
 import math
@@ -392,26 +391,9 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
-<<<<<<< HEAD
     text_encoder = CLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
     vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet = UNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
-=======
-    text_encoder = CLIPTextModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="text_encoder", use_auth_token=args.use_auth_token
-    )
-    print('Loaded text encoder sucessfully!')
-
-    vae = AutoencoderKL.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="vae", use_auth_token=args.use_auth_token
-    )
-    print('Loaded vae sucessfully!')
-
-    unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path, subfolder="unet", use_auth_token=args.use_auth_token
-    )
-    print('Loaded unet sucessfully!')
->>>>>>> f6161a3 (draft)
 
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder.resize_token_embeddings(len(tokenizer))
@@ -463,7 +445,6 @@ def main():
         center_crop=args.center_crop,
         set="train",
     )
-
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.train_batch_size, shuffle=True)
 
     # Scheduler and math around the number of training steps.
@@ -487,10 +468,6 @@ def main():
     # Move vae and unet to device
     vae.to(accelerator.device)
     unet.to(accelerator.device)
-
-    print('\nWait 20s')
-    import time
-    time.sleep(20)
 
     # Keep vae and unet in eval model as we don't train these
     vae.eval()
