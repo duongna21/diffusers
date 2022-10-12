@@ -362,6 +362,7 @@ def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeho
     params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
 
     model.params = params
+    return model
 
 
 def main():
@@ -465,7 +466,7 @@ def main():
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
-    resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
+    text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
 
 
     train_dataset = TextualInversionDataset(
@@ -494,7 +495,6 @@ def main():
                                                    # persistent_workers=True,
                                                    drop_last=True,
                                                    collate_fn=collate_fn)
-
 
 
     if args.scale_lr:
@@ -552,25 +552,27 @@ def main():
         )
 
     # Initialize our training
-    dropout_rngs = jax.random.split(rng, jax.local_device_count())
+    train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Setup train state
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
 
     # Define gradient update step fn
-    def train_step(state, batch, dropout_rng):
-        dropout_rng, new_dropout_rng = jax.random.split(dropout_rng)
+    def train_step(state, batch, train_rng):
+        dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
             vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
-            latents = vae_outputs.latent_dist.sample(rng)
-            latents = jnp.transpose(latents, (0, 3, 1, 2))  # (NHWC) -> (NCHW)
+            latents = vae_outputs.latent_dist.sample(sample_rng)
+            # (NHWC) -> (NCHW)
+            latents = jnp.transpose(latents, (0, 3, 1, 2))
             latents = latents * 0.18215
 
-            noise = jax.random.normal(rng, latents.shape)  # torch.randn(latents.shape).to(latents.device)
+            noise_rng, timestep_rng = jax.random.split(sample_rng)
+            noise = jax.random.normal(noise_rng, latents.shape)
             bsz = latents.shape[0]
             timesteps = jax.random.randint(
-                rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+                timestep_rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
             encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=dropout_rng,
@@ -585,7 +587,7 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        # grad = jax.lax.pmean(grad, "batch")
+        grad = jax.lax.pmean(grad, "batch")
 
         token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
         print("token_embedding_grad.shape, placeholder_token_id: ", token_embedding_grad.shape, placeholder_token_id)
@@ -612,15 +614,15 @@ def main():
         new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
-        # metrics = jax.lax.pmean(metrics, axis_name="batch")
+        metrics = jax.lax.pmean(metrics, axis_name="batch")
 
-        return new_state, metrics, new_dropout_rng
+        return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    # state = jax_utils.replicate(state)
+    state = jax_utils.replicate(state)
 
     # Train!
     total_batch_size = args.train_batch_size * jax.local_device_count()
@@ -638,8 +640,6 @@ def main():
         # ======================== Training ================================
         train_start = time.time()
 
-        # Create sampling rng
-        rng, input_rng = jax.random.split(rng)
         train_metrics = []
 
         steps_per_epoch = len(train_dataset) // total_batch_size
@@ -647,8 +647,7 @@ def main():
         # train
         for batch in train_dataloader:
             # batch = shard(batch)
-            # state, train_metric, dropout_rngs = p_train_step(state, batch, dropout_rngs)
-            state, train_metric, rng = train_step(state, batch, rng)
+            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
