@@ -448,23 +448,17 @@ def main():
     text_encoder = FlaxCLIPTextModel.from_pretrained(
         'duongna/text_encoder_flax', use_auth_token=True
     )
-    print('Loaded text encoder sucessfully!')
-
     vae, state_vae = FlaxAutoencoderKL.from_pretrained(
         'vae_flax'
     )
-    print('Loaded autoencoder sucessfully!')
-
     unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
         'duongna/text_encoder_flax', subfolder="unet_flax", use_auth_token=True,
     )
-    print('Loaded unet sucessfully!')
-
-    # Resize the token embeddings as we are adding new special tokens to the tokenizer
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
+    # Resize the token embeddings as we are adding new special tokens to the tokenizer
     text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
 
 
@@ -491,7 +485,6 @@ def main():
     train_dataloader = torch.utils.data.DataLoader(train_dataset,
                                                    batch_size=args.train_batch_size,
                                                    shuffle=True,
-                                                   # persistent_workers=True,
                                                    drop_last=True,
                                                    collate_fn=collate_fn)
 
@@ -526,7 +519,6 @@ def main():
         mask = {}
         _map(params, mask, label_fn)
         return mask
-
 
     def zero_grads():
         # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
