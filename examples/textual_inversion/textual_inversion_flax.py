@@ -626,6 +626,13 @@ def main():
 
     # Train!
     total_batch_size = args.train_batch_size * jax.local_device_count()
+    num_update_steps_per_epoch = math.ceil(len(train_dataloader))
+
+    # Scheduler and math around the number of training steps.
+    if args.max_train_steps is None:
+        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+
+    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
