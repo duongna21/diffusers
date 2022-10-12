@@ -612,7 +612,7 @@ def main():
         grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad).at[
             placeholder_token_id].set(placeholder_token_grad)
         print('\nafter set back last grad: ',
-              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).mean())
+              jnp.abs(grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]).sum())
         print('after set back last grad: ', jnp.abs(
             grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][:10]]).mean(-1))
         print('before zero grad: ',
