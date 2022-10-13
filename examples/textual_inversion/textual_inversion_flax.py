@@ -645,9 +645,9 @@ def main():
                                                               "safety_checker": safety_checker.params})
 
             # Also save the newly trained embeddings
-            learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
-            learned_embeds_dict = {args.placeholder_token: learned_embeds}
-            torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
+            # learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
+            # learned_embeds_dict = {args.placeholder_token: learned_embeds}
+            # torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
 
             if args.push_to_hub:
                 repo.push_to_hub(commit_message="initial commit", blocking=False, auto_lfs_prune=True)
