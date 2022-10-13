@@ -365,12 +365,7 @@ def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeho
 
 
 def main():
-    # See all possible arguments in src/transformers/training_args.py
-    # or by passing the --help flag to this script.
-    # We now keep distinct sets of args, for a cleaner separation of concerns.
-
     args = parse_args()
-    logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
     # If passed along, set the training seed now.
     if args.seed is not None:
@@ -406,19 +401,6 @@ def main():
     else:
         transformers.utils.logging.set_verbosity_error()
 
-    # Set the verbosity to info of the Transformers logger (on main process only):
-    # logger.info(f"Training/evaluation parameters {training_args}")
-
-
-    # Handle the repository creation
-    # if training_args.push_to_hub:
-    #     if training_args.hub_model_id is None:
-    #         repo_name = get_full_repo_name(
-    #             Path(training_args.output_dir).absolute().name, token=training_args.hub_token
-    #         )
-    #     else:
-    #         repo_name = training_args.hub_model_id
-    #     repo = Repository(training_args.output_dir, clone_from=repo_name)
 
     # Load the tokenizer and add the placeholder token as a additional special token
     if args.tokenizer_name:
@@ -445,15 +427,14 @@ def main():
     initializer_token_id = token_ids[0]
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
-    text_encoder = FlaxCLIPTextModel.from_pretrained(
-        'duongna/text_encoder_flax', use_auth_token=True
-    )
-    vae, state_vae = FlaxAutoencoderKL.from_pretrained(
-        'vae_flax'
-    )
-    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-        'duongna/text_encoder_flax', subfolder="unet_flax", use_auth_token=True,
-    )
+    # Load models and create wrapper for stable diffusion
+    text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path,
+                                                     subfolder="text_encoder", from_pt=True)
+    text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
+    vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path,
+                                                       subfolder="vae", from_pt=True)
+    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path,
+                                                                subfolder="unet", from_pt=True)
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
@@ -656,7 +637,7 @@ def main():
                 feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
             )
 
-            pipeline.save_pretrained(args.output_dir, params={"text_encoder": text_encoder.params,
+            pipeline.save_pretrained(args.output_dir, params={"text_encoder": state.params,
                                                               "vae": state_vae,
                                                               "unet": state_unet,
                                                               "safety_checker": safety_checker.params})
