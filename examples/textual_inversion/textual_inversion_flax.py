@@ -411,21 +411,21 @@ def main():
         )
 
     # Add the placeholder token in tokenizer
-    # num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
-    # if num_added_tokens == 0:
-    #     raise ValueError(
-    #         f"The tokenizer already contains the token {args.placeholder_token}. Please pass a different"
-    #         " `placeholder_token` that is not already in the tokenizer."
-    #     )
-    #
-    # # Convert the initializer_token, placeholder_token to ids
-    # token_ids = tokenizer.encode(args.initializer_token, add_special_tokens=False)
-    # # Check if initializer_token is a single token or a sequence of tokens
-    # if len(token_ids) > 1:
-    #     raise ValueError("The initializer token must be a single token.")
-    #
-    # initializer_token_id = token_ids[0]
-    # placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
+    num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
+    if num_added_tokens == 0:
+        raise ValueError(
+            f"The tokenizer already contains the token {args.placeholder_token}. Please pass a different"
+            " `placeholder_token` that is not already in the tokenizer."
+        )
+
+    # Convert the initializer_token, placeholder_token to ids
+    token_ids = tokenizer.encode(args.initializer_token, add_special_tokens=False)
+    # Check if initializer_token is a single token or a sequence of tokens
+    if len(token_ids) > 1:
+        raise ValueError("The initializer token must be a single token.")
+
+    initializer_token_id = token_ids[0]
+    placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
     # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path,
@@ -440,7 +440,7 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
-    # text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
+    text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
 
 
     train_dataset = TextualInversionDataset(
@@ -556,7 +556,7 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        # grad = jax.lax.pmean(grad, "batch")
+        grad = jax.lax.pmean(grad, "batch")
 
         token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
         placeholder_token_grad = token_embedding_grad[placeholder_token_id]
@@ -566,14 +566,14 @@ def main():
         new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
-        # metrics = jax.lax.pmean(metrics, axis_name="batch")
+        metrics = jax.lax.pmean(metrics, axis_name="batch")
         return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    # state = jax_utils.replicate(state)
+    state = jax_utils.replicate(state)
 
     # Train!
     total_batch_size = args.train_batch_size * jax.local_device_count()
@@ -603,24 +603,21 @@ def main():
         steps_per_epoch = len(train_dataset) // total_batch_size
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
-
         for batch in train_dataloader:
-            break
-            # batch = shard(batch)
-            # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
-            state, train_metric, rng = train_step(state, batch, rng)
+            batch = shard(batch)
+            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
             train_metrics.append(train_metric)
-            train_step_progress_bar.update(1)
-            break
 
-        # train_time += time.time() - train_start
-        #
-        # # train_metric = jax_utils.unreplicate(train_metric)
-        #
-        # train_step_progress_bar.close()
-        # epochs.write(
-        #     f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})"
-        # )
+            train_step_progress_bar.update(1)
+
+        train_time += time.time() - train_start
+
+        train_metric = jax_utils.unreplicate(train_metric)
+
+        train_step_progress_bar.close()
+        epochs.write(
+            f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})"
+        )
 
         # Create the pipeline using using the trained modules and save it.
         if jax.process_index() == 0:
@@ -645,12 +642,12 @@ def main():
                                                               "safety_checker": safety_checker.params})
 
             # Also save the newly trained embeddings
-            # learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
-            # learned_embeds_dict = {args.placeholder_token: learned_embeds}
-            # torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
+            learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
+            learned_embeds_dict = {args.placeholder_token: learned_embeds}
+            torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
 
             if args.push_to_hub:
-                repo.push_to_hub(commit_message="initial commit", blocking=False, auto_lfs_prune=True)
+                repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
 
 
 if __name__ == "__main__":
