@@ -429,13 +429,14 @@ def main():
 
         return batch
 
+    total_train_batch_size = args.train_batch_size * jax.local_device_count()
     train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.train_batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn
+        train_dataset, batch_size=total_train_batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn
     )
 
     # Optimization
     if args.scale_lr:
-        args.learning_rate = args.learning_rate * args.train_batch_size * jax.local_device_count()
+        args.learning_rate = args.learning_rate * total_train_batch_size
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
@@ -557,8 +558,8 @@ def main():
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size // jax.local_device_count()}")
-    logger.info(f"  Total train batch size (w. parallel & distributed) = {args.train_batch_size}")
+    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
+    logger.info(f"  Total train batch size (w. parallel & distributed) = {total_train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
     train_time = 0
