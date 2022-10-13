@@ -472,7 +472,7 @@ def main():
                                                    drop_last=True,
                                                    collate_fn=collate_fn)
 
-
+    # Optimization
     if args.scale_lr:
         args.learning_rate = (
             args.learning_rate * args.train_batch_size * jax.local_device_count()
@@ -514,7 +514,7 @@ def main():
 
         return optax.GradientTransformation(init_fn, update_fn)
 
-    # allows only token embedding layer of the text encoder to have non-zero gradient
+    # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform({"token_emb": optimizer, "zero": zero_grads()},
                                create_mask(text_encoder.params, lambda s: s=="token_embedding"))
 
@@ -529,7 +529,7 @@ def main():
     # Initialize our training
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    # Define gradient update step fn
+    # Define gradient train step fn
     def train_step(state, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
@@ -608,6 +608,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
+            print(jax.tree_util.tree_map(lambda x: x.shape))
             state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
             train_metrics.append(train_metric)
 
