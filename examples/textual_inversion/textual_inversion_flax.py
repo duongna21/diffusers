@@ -432,9 +432,9 @@ def main():
     #                                                  subfolder="text_encoder", from_pt=True)
     text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
     vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/text_encoder_flax',
-                                                       subfolder="vae")
+                                                       subfolder="vae_flax")
     unet, state_unet = FlaxUNet2DConditionModel.from_pretrained('duongna/text_encoder_flax',
-                                                                subfolder="unet")
+                                                                subfolder="unet_flax")
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
