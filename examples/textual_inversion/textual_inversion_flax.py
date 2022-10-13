@@ -428,13 +428,15 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
-    # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path,
-    #                                                  subfolder="text_encoder", from_pt=True)
-    text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
-    vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/text_encoder_flax',
-                                                       subfolder="vae_flax")
-    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained('duongna/text_encoder_flax',
-                                                                subfolder="unet_flax")
+    text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+
+    # text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
+    # vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/text_encoder_flax',
+    #                                                    subfolder="vae_flax")
+    # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained('duongna/text_encoder_flax',
+    #                                                             subfolder="unet_flax")
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
