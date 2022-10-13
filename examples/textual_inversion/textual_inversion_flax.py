@@ -411,21 +411,21 @@ def main():
         )
 
     # Add the placeholder token in tokenizer
-    num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
-    if num_added_tokens == 0:
-        raise ValueError(
-            f"The tokenizer already contains the token {args.placeholder_token}. Please pass a different"
-            " `placeholder_token` that is not already in the tokenizer."
-        )
-
-    # Convert the initializer_token, placeholder_token to ids
-    token_ids = tokenizer.encode(args.initializer_token, add_special_tokens=False)
-    # Check if initializer_token is a single token or a sequence of tokens
-    if len(token_ids) > 1:
-        raise ValueError("The initializer token must be a single token.")
-
-    initializer_token_id = token_ids[0]
-    placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
+    # num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
+    # if num_added_tokens == 0:
+    #     raise ValueError(
+    #         f"The tokenizer already contains the token {args.placeholder_token}. Please pass a different"
+    #         " `placeholder_token` that is not already in the tokenizer."
+    #     )
+    #
+    # # Convert the initializer_token, placeholder_token to ids
+    # token_ids = tokenizer.encode(args.initializer_token, add_special_tokens=False)
+    # # Check if initializer_token is a single token or a sequence of tokens
+    # if len(token_ids) > 1:
+    #     raise ValueError("The initializer token must be a single token.")
+    #
+    # initializer_token_id = token_ids[0]
+    # placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
     # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path,
@@ -440,7 +440,7 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
-    text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
+    # text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
 
 
     train_dataset = TextualInversionDataset(
@@ -522,27 +522,6 @@ def main():
     noise_scheduler = FlaxDDPMScheduler(
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
     )
-    scheduler = FlaxPNDMScheduler(
-        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
-    )
-    safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker",
-                                                                      from_pt=True)
-    pipeline = FlaxStableDiffusionPipeline(
-        text_encoder=text_encoder,
-        vae=vae,
-        unet=unet,
-        tokenizer=tokenizer,
-        scheduler=scheduler,
-        safety_checker=safety_checker,
-        feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
-    )
-
-    pipeline.save_pretrained(args.output_dir, params={"text_encoder": state.params,
-                                                      "vae": state_vae,
-                                                      "unet": state_unet,
-                                                      "safety_checker": safety_checker.params})
-    if args.push_to_hub:
-        repo.push_to_hub(commit_message="first commit", blocking=False, auto_lfs_prune=True)
 
     # Initialize our training
     train_rngs = jax.random.split(rng, jax.local_device_count())
