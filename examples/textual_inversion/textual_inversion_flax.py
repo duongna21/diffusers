@@ -650,7 +650,7 @@ def main():
             torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
 
             if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
+                repo.push_to_hub(commit_message="initial commit", blocking=False, auto_lfs_prune=True)
 
 
 if __name__ == "__main__":
