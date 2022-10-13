@@ -429,8 +429,8 @@ def main():
 
     # Load models and create wrapper for stable diffusion
     text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
+    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
     # text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
     # vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/text_encoder_flax',
