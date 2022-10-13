@@ -590,7 +590,7 @@ def main():
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size / jax.local_device_count()}")
+    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size // jax.local_device_count()}")
     logger.info(f"  Total train batch size (w. parallel & distributed) = {args.train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
@@ -602,7 +602,7 @@ def main():
 
         train_metrics = []
 
-        steps_per_epoch = len(train_dataset) // args.train_batch_size
+        steps_per_epoch = len(train_dataset) // total_batch_size
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
         for batch in train_dataloader:
