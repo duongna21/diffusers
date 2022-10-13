@@ -542,7 +542,7 @@ def main():
                                                       "unet": state_unet,
                                                       "safety_checker": safety_checker.params})
     if args.push_to_hub:
-        repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
+        repo.push_to_hub(commit_message="first commit", blocking=False, auto_lfs_prune=True)
 
     # Initialize our training
     train_rngs = jax.random.split(rng, jax.local_device_count())
