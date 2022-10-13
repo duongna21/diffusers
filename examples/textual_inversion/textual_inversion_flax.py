@@ -17,13 +17,20 @@ from flax.training import train_state
 from flax.training.common_utils import shard
 
 import optax
+
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch.utils.data import Dataset
 
 import PIL
-from diffusers import FlaxAutoencoderKL, FlaxDDPMScheduler, FlaxPNDMScheduler, FlaxStableDiffusionPipeline, FlaxUNet2DConditionModel
+from diffusers import (
+    FlaxAutoencoderKL,
+    FlaxDDPMScheduler,
+    FlaxPNDMScheduler,
+    FlaxStableDiffusionPipeline,
+    FlaxUNet2DConditionModel,
+)
 from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
 from huggingface_hub import HfFolder, Repository, whoami
 from PIL import Image
@@ -302,13 +309,14 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
     else:
         return f"{organization}/{model_id}"
 
+
 def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeholder_token_id, rng):
     if model.config.vocab_size == new_num_tokens or new_num_tokens is None:
         return
     model.config.vocab_size = new_num_tokens
 
     params = model.params
-    old_embeddings = params['text_model']['embeddings']['token_embedding']['embedding']
+    old_embeddings = params["text_model"]["embeddings"]["token_embedding"]["embedding"]
     old_num_tokens, emb_dim = old_embeddings.shape
 
     initializer = jax.nn.initializers.normal()
@@ -316,7 +324,7 @@ def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeho
     new_embeddings = initializer(rng, (new_num_tokens, emb_dim))
     new_embeddings = new_embeddings.at[:old_num_tokens].set(old_embeddings)
     new_embeddings = new_embeddings.at[placeholder_token_id].set(new_embeddings[initializer_token_id])
-    params['text_model']['embeddings']['token_embedding']['embedding'] = new_embeddings
+    params["text_model"]["embeddings"]["token_embedding"]["embedding"] = new_embeddings
 
     model.params = params
     return model
@@ -345,7 +353,6 @@ def main():
         elif args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
 
-
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -359,14 +366,11 @@ def main():
     else:
         transformers.utils.logging.set_verbosity_error()
 
-
     # Load the tokenizer and add the placeholder token as a additional special token
     if args.tokenizer_name:
         tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
     elif args.pretrained_model_name_or_path:
-        tokenizer = CLIPTokenizer.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="tokenizer"
-        )
+        tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
 
     # Add the placeholder token in tokenizer
     num_added_tokens = tokenizer.add_tokens(args.placeholder_token)
@@ -401,8 +405,9 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
-    text_encoder = resize_token_embeddings(text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng)
-
+    text_encoder = resize_token_embeddings(
+        text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng
+    )
 
     train_dataset = TextualInversionDataset(
         data_root=args.train_data_dir,
@@ -416,25 +421,21 @@ def main():
     )
 
     def collate_fn(examples):
-        pixel_values = torch.stack([example['pixel_values'] for example in examples])
-        input_ids = torch.stack([example['input_ids'] for example in examples])
+        pixel_values = torch.stack([example["pixel_values"] for example in examples])
+        input_ids = torch.stack([example["input_ids"] for example in examples])
 
         batch = {"pixel_values": pixel_values, "input_ids": input_ids}
         batch = {k: v.numpy() for k, v in batch.items()}
 
         return batch
 
-    train_dataloader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=args.train_batch_size,
-                                                   shuffle=True,
-                                                   drop_last=True,
-                                                   collate_fn=collate_fn)
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=args.train_batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn
+    )
 
     # Optimization
     if args.scale_lr:
-        args.learning_rate = (
-            args.learning_rate * args.train_batch_size * jax.local_device_count()
-        )
+        args.learning_rate = args.learning_rate * args.train_batch_size * jax.local_device_count()
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
@@ -450,13 +451,13 @@ def main():
         def _map(params, mask, label_fn):
             for k in params:
                 if label_fn(k):
-                    mask[k] = 'token_emb'
+                    mask[k] = "token_emb"
                 else:
                     if isinstance(params[k], dict):
                         mask[k] = {}
                         _map(params[k], mask[k], label_fn)
                     else:
-                        mask[k] = 'zero'
+                        mask[k] = "zero"
 
         mask = {}
         _map(params, mask, label_fn)
@@ -473,15 +474,15 @@ def main():
         return optax.GradientTransformation(init_fn, update_fn)
 
     # Zero out gradients of layers other than the token embedding layer
-    tx = optax.multi_transform({"token_emb": optimizer, "zero": zero_grads()},
-                               create_mask(text_encoder.params, lambda s: s=="token_embedding"))
+    tx = optax.multi_transform(
+        {"token_emb": optimizer, "zero": zero_grads()},
+        create_mask(text_encoder.params, lambda s: s == "token_embedding"),
+    )
 
-    state = train_state.TrainState.create(apply_fn=text_encoder.__call__,
-                                          params=text_encoder.params,
-                                          tx=tx)
+    state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=tx)
 
     noise_scheduler = FlaxDDPMScheduler(
-            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
     )
 
     # Initialize our training
@@ -492,7 +493,9 @@ def main():
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
-            vae_outputs = vae.apply({'params': state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode)
+            vae_outputs = vae.apply(
+                {"params": state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode
+            )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
             latents = jnp.transpose(latents, (0, 3, 1, 2))
@@ -502,13 +505,18 @@ def main():
             noise = jax.random.normal(noise_rng, latents.shape)
             bsz = latents.shape[0]
             timesteps = jax.random.randint(
-                timestep_rng, (bsz,), 0, noise_scheduler.config.num_train_timesteps,
+                timestep_rng,
+                (bsz,),
+                0,
+                noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            encoder_hidden_states = state.apply_fn(batch["input_ids"], params=params, dropout_rng=dropout_rng,
-                                                   train=True)[0]
-            unet_outputs = unet.apply({'params': state_unet}, noisy_latents, timesteps, encoder_hidden_states,
-                                      train=False)
+            encoder_hidden_states = state.apply_fn(
+                batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True
+            )[0]
+            unet_outputs = unet.apply(
+                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False
+            )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
             loss = loss.mean()
@@ -519,10 +527,11 @@ def main():
         loss, grad = grad_fn(state.params)
         grad = jax.lax.pmean(grad, "batch")
 
-        token_embedding_grad = grad['text_model']['embeddings']['token_embedding']['embedding']
+        token_embedding_grad = grad["text_model"]["embeddings"]["token_embedding"]["embedding"]
         placeholder_token_grad = token_embedding_grad[placeholder_token_id]
-        grad['text_model']['embeddings']['token_embedding']['embedding'] = jnp.zeros_like(token_embedding_grad).at[
-            placeholder_token_id].set(placeholder_token_grad)
+        grad["text_model"]["embeddings"]["token_embedding"]["embedding"] = (
+            jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
+        )
 
         new_state = state.apply_gradients(grads=grad)
 
@@ -575,17 +584,16 @@ def main():
         train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
-        epochs.write(
-            f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})"
-        )
+        epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
 
         # Create the pipeline using using the trained modules and save it.
         if jax.process_index() == 0:
             scheduler = FlaxPNDMScheduler(
                 beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
             )
-            safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker",
-                                                                              from_pt=True)
+            safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker", from_pt=True
+            )
             pipeline = FlaxStableDiffusionPipeline(
                 text_encoder=text_encoder,
                 vae=vae,
@@ -596,13 +604,20 @@ def main():
                 feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
             )
 
-            pipeline.save_pretrained(args.output_dir, params={"text_encoder": state.params,
-                                                              "vae": state_vae,
-                                                              "unet": state_unet,
-                                                              "safety_checker": safety_checker.params})
+            pipeline.save_pretrained(
+                args.output_dir,
+                params={
+                    "text_encoder": state.params,
+                    "vae": state_vae,
+                    "unet": state_unet,
+                    "safety_checker": safety_checker.params,
+                },
+            )
 
             # Also save the newly trained embeddings
-            learned_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]
+            learned_embeds = text_encoder.params["text_model"]["embeddings"]["token_embedding"]["embedding"][
+                placeholder_token_id
+            ]
             learned_embeds_dict = {args.placeholder_token: learned_embeds}
             torch.save(learned_embeds_dict, os.path.join(args.output_dir, "learned_embeds.bin"))
 
