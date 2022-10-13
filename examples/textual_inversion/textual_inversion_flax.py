@@ -407,7 +407,7 @@ def main():
         tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
     elif args.pretrained_model_name_or_path:
         tokenizer = CLIPTokenizer.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="tokenizer", use_auth_token=args.use_auth_token
+            args.pretrained_model_name_or_path, subfolder="tokenizer"
         )
 
     # Add the placeholder token in tokenizer
