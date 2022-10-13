@@ -114,6 +114,9 @@ def parse_args():
         help="Scale the learning rate by the number of GPUs, gradient accumulation steps, and batch size.",
     )
     parser.add_argument(
+        "--lr_warmup_steps", type=int, default=500, help="Number of steps for the warmup in the lr scheduler."
+    )
+    parser.add_argument(
         "--lr_scheduler",
         type=str,
         default="constant",
