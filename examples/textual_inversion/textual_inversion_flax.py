@@ -613,7 +613,7 @@ def main():
 
         train_time += time.time() - train_start
 
-        train_metric = jax_utils.unreplicate(train_metric)
+        # train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
         epochs.write(
