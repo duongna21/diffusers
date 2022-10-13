@@ -570,7 +570,7 @@ def main():
 
         train_metrics = []
 
-        steps_per_epoch = len(train_dataset) // total_batch_size
+        steps_per_epoch = len(train_dataset) // total_train_batch_size
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
         for batch in train_dataloader:
