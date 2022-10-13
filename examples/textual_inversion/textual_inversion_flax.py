@@ -579,7 +579,6 @@ def main():
     state = jax_utils.replicate(state)
 
     # Train!
-    total_batch_size = args.train_batch_size * jax.local_device_count()
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
 
     # Scheduler and math around the number of training steps.
@@ -591,8 +590,8 @@ def main():
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel & distributed) = {total_batch_size}")
+    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size / jax.local_device_count()}")
+    logger.info(f"  Total train batch size (w. parallel & distributed) = {args.train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
     train_time = 0
