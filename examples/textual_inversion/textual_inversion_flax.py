@@ -607,7 +607,7 @@ def main():
         for batch in train_dataloader:
             # batch = shard(batch)
             # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
-            state, train_metric, rng = p_train_step(state, batch, rng)
+            state, train_metric, rng = train_step(state, batch, rng)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
