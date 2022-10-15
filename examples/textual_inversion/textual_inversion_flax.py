@@ -526,11 +526,11 @@ def main():
         loss, grad = grad_fn(state.params)
         # grad = jax.lax.pmean(grad, "batch")
 
-        token_embedding_grad = grad["text_model"]["embeddings"]["token_embedding"]["embedding"]
-        placeholder_token_grad = token_embedding_grad[placeholder_token_id]
-        grad["text_model"]["embeddings"]["token_embedding"]["embedding"] = (
-            jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
-        )
+        # token_embedding_grad = grad["text_model"]["embeddings"]["token_embedding"]["embedding"]
+        # placeholder_token_grad = token_embedding_grad[placeholder_token_id]
+        # grad["text_model"]["embeddings"]["token_embedding"]["embedding"] = (
+        #     jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
+        # )
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
 
         new_state = state.apply_gradients(grads=grad)
