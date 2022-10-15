@@ -440,7 +440,7 @@ def main():
         b1=args.adam_beta1,
         b2=args.adam_beta2,
         eps=args.adam_epsilon,
-        weight_decay=args.adam_weight_decay,
+        # weight_decay=args.adam_weight_decay,
     )
 
     def create_mask(params, label_fn):
