@@ -531,7 +531,7 @@ def main():
         grad["text_model"]["embeddings"]["token_embedding"]["embedding"] = (
             jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
         )
-        jnp.save('grad.npy', grad)
+        jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
 
         new_state = state.apply_gradients(grads=grad)
 
