@@ -412,11 +412,11 @@ def main():
         )
 
     # Initialize the optimizer
-    optimizer = torch.optim.AdamW(
+    optimizer = torch.optim.Adam(
         text_encoder.get_input_embeddings().parameters(),  # only optimize the embeddings
         lr=args.learning_rate,
         betas=(args.adam_beta1, args.adam_beta2),
-        weight_decay=args.adam_weight_decay,
+        # weight_decay=args.adam_weight_decay,
         eps=args.adam_epsilon,
     )
 
