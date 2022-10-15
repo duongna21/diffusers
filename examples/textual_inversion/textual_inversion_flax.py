@@ -596,9 +596,9 @@ def main():
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
-            i += 1
-            if i==2:
-                break
+            # i += 1
+            # if i==2:
+            #     break
 
         train_time += time.time() - train_start
 
