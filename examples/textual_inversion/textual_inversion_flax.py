@@ -536,7 +536,7 @@ def main():
         new_state = state.apply_gradients(grads=grad)
         token_embeds = state.params['text_model']['embeddings']['token_embedding']['embedding']
         token_embeds.at[placeholder_token_id].set(
-            new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id])
+            new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id, :])
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
         print('before token 0: ',
