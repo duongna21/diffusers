@@ -532,12 +532,19 @@ def main():
             jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
         )
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
-        print('before token 0: ', text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
-        print('after token 0: ', state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
-        print('\nbefor token placeholder_token_id: ', text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
-        print('after token placeholder_token_id: ', state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
 
         new_state = state.apply_gradients(grads=grad)
+        print('before token 0: ',
+              text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
+        print('grad token 0: ', grad['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
+        print('after token 0: ', state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
+
+        print('\nbefore token placeholder_token_id: ',
+              text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][
+              :10])
+        print('grad token placeholder_token_id: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
+        print('after token placeholder_token_id: ',
+              state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
 
         metrics = {"loss": loss}
         # metrics = jax.lax.pmean(metrics, axis_name="batch")
