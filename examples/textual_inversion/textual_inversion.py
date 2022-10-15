@@ -547,7 +547,7 @@ def main():
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
-            if global_step >= 2 # args.max_train_steps:
+            if global_step >= 2: # args.max_train_steps:
                 break
 
         accelerator.wait_for_everyone()
