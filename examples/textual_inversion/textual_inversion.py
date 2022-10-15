@@ -539,7 +539,8 @@ def main():
 
                 # Get the index for tokens that we want to zero the grads for
                 index_grads_to_zero = torch.arange(len(tokenizer)) != placeholder_token_id
-                text_encoder.get_input_embeddings().weight.data[index_grads_to_zero, :] = original_token_embeds[index_grads_to_zero, :]
+                text_encoder.get_input_embeddings().weight.data[index_grads_to_zero, :] \
+                    = original_token_embeds[index_grads_to_zero, :].cuda()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
