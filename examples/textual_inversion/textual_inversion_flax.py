@@ -398,11 +398,6 @@ def main():
     vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
-    # text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
-    # vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/text_encoder_flax',
-    #                                                    subfolder="vae_flax")
-    # unet, state_unet = FlaxUNet2DConditionModel.from_pretrained('duongna/text_encoder_flax',
-    #                                                             subfolder="unet_flax")
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
@@ -529,25 +524,26 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        grad = jax.lax.pmean(grad, "batch")
+        # grad = jax.lax.pmean(grad, "batch")
 
         token_embedding_grad = grad["text_model"]["embeddings"]["token_embedding"]["embedding"]
         placeholder_token_grad = token_embedding_grad[placeholder_token_id]
         grad["text_model"]["embeddings"]["token_embedding"]["embedding"] = (
             jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
         )
+        jnp.save('grad.npy', grad)
 
         new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
-        metrics = jax.lax.pmean(metrics, axis_name="batch")
+        # metrics = jax.lax.pmean(metrics, axis_name="batch")
         return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    state = jax_utils.replicate(state)
+    # state = jax_utils.replicate(state)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -577,15 +573,16 @@ def main():
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
         for batch in train_dataloader:
-            batch = shard(batch)
-            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
+            # batch = shard(batch)
+            # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
+            state, train_metric, rng = train_step(state, batch, rng)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
 
         train_time += time.time() - train_start
 
-        train_metric = jax_utils.unreplicate(train_metric)
+        # train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
