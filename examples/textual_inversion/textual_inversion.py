@@ -394,7 +394,7 @@ def main():
     # Initialise the newly added placeholder token with the embeddings of the initializer token
     token_embeds = text_encoder.get_input_embeddings().weight.data
     original_token_embeds = token_embeds.detach().clone()
-    print("original_token_embeds[1][:10]: ", original_token_embeds[1][:10])
+    print("\n\noriginal_token_embeds[1][:10]: ", original_token_embeds[1][:10])
     token_embeds[placeholder_token_id] = token_embeds[initializer_token_id]
 
     # Freeze vae and unet
