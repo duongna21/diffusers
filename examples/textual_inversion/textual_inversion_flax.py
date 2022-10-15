@@ -534,9 +534,9 @@ def main():
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
 
         new_state = state.apply_gradients(grads=grad)
-        token_embeds = new_state.params['text_model']['embeddings']['token_embedding']['embedding']
-        token_embeds.at[:-1].set(
-            state.params['text_model']['embeddings']['token_embedding']['embedding'][:-1])
+        token_embeds = state.params['text_model']['embeddings']['token_embedding']['embedding']
+        token_embeds.at[1].set(
+            new_state.params['text_model']['embeddings']['token_embedding']['embedding'][-1])
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
         print('before token 0: ',
