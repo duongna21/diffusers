@@ -435,7 +435,7 @@ def main():
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
-    optimizer = optax.adamw(
+    optimizer = optax.adam(
         learning_rate=constant_scheduler,
         b1=args.adam_beta1,
         b2=args.adam_beta2,
