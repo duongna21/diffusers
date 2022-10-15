@@ -537,7 +537,7 @@ def main():
         token_embeds = state.params['text_model']['embeddings']['token_embedding']['embedding']
         token_embeds.at[:-1].set(
             state.params['text_model']['embeddings']['token_embedding']['embedding'][:-1])
-        new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = .at[
+        new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
         print('before token 0: ',
               state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
