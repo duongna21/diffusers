@@ -529,12 +529,23 @@ def main():
             jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
         )
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
-        updates, new_opt_state = state.tx.update(
-            grad, state.opt_state, state.params)
-        print('\n\nupdates token embeddings: ', jax.tree_util.tree_map(lambda x: x, updates["text_model"]["embeddings"]["token_embedding"]["embedding"]))
-        print('\n\nupdates position embeddings: ', jax.tree_util.tree_map(lambda x: x, updates["text_model"]["embeddings"]["position_embedding"]["embedding"]))
 
-        new_state = state.apply_gradients(grads=grad)
+        updates, new_opt_state = state.tx.update(grad, state.opt_state, state.params)
+        new_params = optax.apply_updates(state.params, updates)
+
+        print('\n\nupdates token embeddings: ',
+              jax.tree_util.tree_map(lambda x: x, updates["text_model"]["embeddings"]["token_embedding"]["embedding"]))
+        print('\n\nupdates position embeddings: ', jax.tree_util.tree_map(lambda x: x,
+                                                                          updates["text_model"]["embeddings"][
+                                                                              "position_embedding"]["embedding"]))
+
+        new_state = state.replace(
+            step=state.step + 1,
+            params=new_params,
+            opt_state=new_opt_state,
+        )
+
+        # new_state = state.apply_gradients(grads=grad)
         print('\nbefore token 0: ',
               state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
         print('grad token 0: ', grad['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
