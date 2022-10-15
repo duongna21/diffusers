@@ -531,7 +531,7 @@ def main():
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
         updates, new_opt_state = state.tx.update(
             grad, state.opt_state, state.params)
-        print('\n\nupdates: ', jax.tree_util.tree_map(lambda x: x.sum(-1), updates))
+        print('\n\nupdates: ', jax.tree_util.tree_map(lambda x: x.sum(-1), updates["text_model"]["embeddings"]["token_embedding"]["embedding"]))
 
         new_state = state.apply_gradients(grads=grad)
         print('\nbefore token 0: ',
