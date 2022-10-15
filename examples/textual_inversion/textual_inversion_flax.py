@@ -535,12 +535,12 @@ def main():
 
         new_state = state.apply_gradients(grads=grad)
         print('before token 0: ',
-              text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
+              state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
         print('grad token 0: ', grad['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
         print('after token 0: ', new_state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
 
         print('\nbefore token placeholder_token_id: ',
-              text_encoder.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][
+              state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][
               :10])
         print('grad token placeholder_token_id: ', grad['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
         print('after token placeholder_token_id: ',
