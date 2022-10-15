@@ -533,6 +533,8 @@ def main():
         updates, new_opt_state = state.tx.update(grad, state.opt_state, state.params)
         new_params = optax.apply_updates(state.params, updates)
 
+        print('state.opt_state: ', state.opt_state)
+
         print('\n\nupdates token embeddings: ',
               jax.tree_util.tree_map(lambda x: x, updates["text_model"]["embeddings"]["token_embedding"]["embedding"]))
         print('\n\nupdates position embeddings: ', jax.tree_util.tree_map(lambda x: x,
