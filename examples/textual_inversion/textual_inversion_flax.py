@@ -535,7 +535,7 @@ def main():
 
         new_state = state.apply_gradients(grads=grad)
         token_embeds = state.params['text_model']['embeddings']['token_embedding']['embedding']
-        token_embeds.at[1].set(
+        token_embeds.at[-1].set(
             new_state.params['text_model']['embeddings']['token_embedding']['embedding'][-1])
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
