@@ -1,6 +1,5 @@
 import argparse
 import logging
-import itertools
 import math
 import time
 import os
@@ -11,7 +10,6 @@ from typing import Optional
 import numpy as np
 import jax
 import jax.numpy as jnp
-import flax.linen as nn
 from flax import jax_utils, traverse_util
 from flax.training import train_state
 from flax.training.common_utils import shard
@@ -19,7 +17,6 @@ from flax.training.common_utils import shard
 import optax
 
 import torch
-import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch.utils.data import Dataset
 
@@ -532,9 +529,12 @@ def main():
             jnp.zeros_like(token_embedding_grad).at[placeholder_token_id].set(placeholder_token_grad)
         )
         # jnp.save('grad.npy', grad["text_model"]["embeddings"]["token_embedding"]["embedding"])
+        updates, new_opt_state = state.tx.update(
+            grad, state.opt_state, state.params)
+        print('\n\nupdates: ', updates)
 
         new_state = state.apply_gradients(grads=grad)
-        print('before token 0: ',
+        print('\nbefore token 0: ',
               state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
         print('grad token 0: ', grad['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
         print('after token 0: ', new_state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
