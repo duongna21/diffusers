@@ -543,10 +543,10 @@ def main():
         print("new token_embeds[placeholder_token_id]: ", token_embeds[placeholder_token_id][:10])
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
-        print('\nbefore token 0: ',
-              state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
-        print('grad token 0: ', grad['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
-        print('after token 0: ', new_state.params['text_model']['embeddings']['token_embedding']['embedding'][0][:10])
+        print('\nbefore token batch["input_ids"][0][0]: ',
+              state.params['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][0]][:10])
+        print('grad token batch["input_ids"][0][0]: ', grad['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][0]][:10])
+        print('after token batch["input_ids"][0][0]: ', new_state.params['text_model']['embeddings']['token_embedding']['embedding'][batch["input_ids"][0][0]][:10])
 
         print('\nbefore token placeholder_token_id: ',
               state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][
