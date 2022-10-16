@@ -538,7 +538,7 @@ def main():
         print("token_embeds[placeholder_token_id]: ", token_embeds[placeholder_token_id][:10])
         print("new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id]: ",
               new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id][:10])
-        token_embeds.at[placeholder_token_id].set(
+        token_embeds = token_embeds.at[placeholder_token_id].set(
             new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id])
         print("new token_embeds[placeholder_token_id]: ", token_embeds[placeholder_token_id][:10])
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
