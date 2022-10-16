@@ -9,7 +9,7 @@ from typing import Optional
 import numpy as np
 import jax
 jax.config.update('jax_platform_name', 'cpu')
-print('\n\njax.devices(): 'jax.devices())
+print('\n\njax.devices(): ', jax.devices())
 
 import jax.numpy as jnp
 from flax import jax_utils
