@@ -1,7 +1,6 @@
 import argparse
 import logging
 import math
-import time
 import os
 import random
 from pathlib import Path
@@ -9,6 +8,9 @@ from typing import Optional
 
 import numpy as np
 import jax
+jax.config.update('jax_platform_name', 'cpu')
+print('\n\njax.devices(): 'jax.devices())
+
 import jax.numpy as jnp
 from flax import jax_utils
 from flax.training import train_state
@@ -38,7 +40,6 @@ from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer,
 
 logger = logging.getLogger(__name__)
 
-jax.config.update('jax_platform_name', 'cpu')
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
     parser.add_argument(
