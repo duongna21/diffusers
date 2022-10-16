@@ -521,7 +521,7 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        grad = jax.lax.pmean(grad, "batch")
+        # grad = jax.lax.pmean(grad, "batch")
         new_state = state.apply_gradients(grads=grad)
 
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
@@ -531,14 +531,14 @@ def main():
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
         metrics = {"loss": loss}
-        metrics = jax.lax.pmean(metrics, axis_name="batch")
+        # metrics = jax.lax.pmean(metrics, axis_name="batch")
         return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    state = jax_utils.replicate(state)
+    # state = jax_utils.replicate(state)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -569,8 +569,9 @@ def main():
         # train
         i = 0
         for batch in train_dataloader:
-            batch = shard(batch)
-            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
+            # batch = shard(batch)
+            # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
+            state, train_metric, rng = train_step(state, batch, rng)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
