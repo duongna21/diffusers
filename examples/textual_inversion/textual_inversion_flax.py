@@ -38,7 +38,7 @@ from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer,
 
 logger = logging.getLogger(__name__)
 
-
+jax.config.update('jax_platform_name', 'cpu')
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
     parser.add_argument(
