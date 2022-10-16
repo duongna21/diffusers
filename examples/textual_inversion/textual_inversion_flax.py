@@ -389,8 +389,8 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
+    text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path+"/text_encoder")
     # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path + "/text_encoder")
     vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
@@ -559,14 +559,12 @@ def main():
     epochs = tqdm(range(args.num_train_epochs), desc=f"Epoch ... (1/{args.num_train_epochs})", position=0)
     for epoch in epochs:
         # ======================== Training ================================
-        train_start = time.time()
 
         train_metrics = []
 
         steps_per_epoch = len(train_dataset) // total_train_batch_size
         train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
         # train
-        i = 0
         for batch in train_dataloader:
             batch = shard(batch)
             state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
