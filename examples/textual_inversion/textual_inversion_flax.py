@@ -521,7 +521,7 @@ def main():
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
-        # grad = jax.lax.pmean(grad, "batch")
+        grad = jax.lax.pmean(grad, "batch")
         new_state = state.apply_gradients(grads=grad)
 
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
@@ -531,14 +531,14 @@ def main():
         new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
 
         metrics = {"loss": loss}
-        # metrics = jax.lax.pmean(metrics, axis_name="batch")
+        metrics = jax.lax.pmean(metrics, axis_name="batch")
         return new_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
-    # state = jax_utils.replicate(state)
+    state = jax_utils.replicate(state)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -556,7 +556,6 @@ def main():
     logger.info(f"  Total train batch size (w. parallel & distributed) = {total_train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
-    train_time = 0
     epochs = tqdm(range(args.num_train_epochs), desc=f"Epoch ... (1/{args.num_train_epochs})", position=0)
     for epoch in epochs:
         # ======================== Training ================================
@@ -569,19 +568,13 @@ def main():
         # train
         i = 0
         for batch in train_dataloader:
-            # batch = shard(batch)
-            # state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
-            state, train_metric, rng = train_step(state, batch, rng)
+            batch = shard(batch)
+            state, train_metric, train_rngs = p_train_step(state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
-            i += 1
-            if i==2:
-                break
 
-        train_time += time.time() - train_start
-
-        # train_metric = jax_utils.unreplicate(train_metric)
+        train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
