@@ -8,8 +8,9 @@ from typing import Optional
 
 import numpy as np
 import jax
-jax.config.update('jax_platform_name', 'cpu')
-print('\n\njax.devices(): ', jax.devices())
+
+jax.config.update("jax_platform_name", "cpu")
+print("\n\njax.devices(): ", jax.devices())
 
 import jax.numpy as jnp
 from flax import jax_utils
@@ -39,6 +40,7 @@ import transformers
 from transformers import CLIPFeatureExtractor, FlaxCLIPTextModel, CLIPTokenizer, set_seed
 
 logger = logging.getLogger(__name__)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
@@ -331,6 +333,10 @@ def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeho
     return model
 
 
+def get_params_to_save(params):
+    return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
+
+
 def main():
     args = parse_args()
 
@@ -390,11 +396,14 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
-    text_encoder = FlaxCLIPTextModel.from_pretrained('duongna/text_encoder_flax')
+    text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
     # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    vae, state_vae = FlaxAutoencoderKL.from_pretrained('duongna/'+args.pretrained_model_name_or_path, subfolder="vae")
-    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained('duongna/'+args.pretrained_model_name_or_path, subfolder="unet")
-
+    vae, state_vae = FlaxAutoencoderKL.from_pretrained(
+        "duongna/" + args.pretrained_model_name_or_path, subfolder="vae"
+    )
+    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
+        "duongna/" + args.pretrained_model_name_or_path, subfolder="unet"
+    )
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
@@ -403,7 +412,7 @@ def main():
     text_encoder = resize_token_embeddings(
         text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng
     )
-    original_token_embeds = text_encoder.params['text_model']['embeddings']['token_embedding']['embedding']
+    original_token_embeds = text_encoder.params["text_model"]["embeddings"]["token_embedding"]["embedding"]
 
     train_dataset = TextualInversionDataset(
         data_root=args.train_data_dir,
@@ -466,7 +475,7 @@ def main():
             return ()
 
         def update_fn(updates, state, params=None):
-            return jax.tree_map(jnp.zeros_like, updates), ()
+            return jax.tree_util.tree_map(jnp.zeros_like, updates), ()
 
         return optax.GradientTransformation(init_fn, update_fn)
 
@@ -528,8 +537,9 @@ def main():
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
         # as we only want to optimize the concept embeddings
         token_embeds = original_token_embeds.at[placeholder_token_id].set(
-            new_state.params['text_model']['embeddings']['token_embedding']['embedding'][placeholder_token_id])
-        new_state.params['text_model']['embeddings']['token_embedding']['embedding'] = token_embeds
+            new_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"][placeholder_token_id]
+        )
+        new_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"] = token_embeds
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
@@ -599,17 +609,17 @@ def main():
             pipeline.save_pretrained(
                 args.output_dir,
                 params={
-                    "text_encoder": state.params,
-                    "vae": state_vae,
-                    "unet": state_unet,
-                    "safety_checker": safety_checker.params,
+                    "text_encoder": get_params_to_save(state.params),
+                    "vae": get_params_to_save(state_vae),
+                    "unet": get_params_to_save(state_unet),
+                    "safety_checker": get_params_to_save(safety_checker.params),
                 },
             )
 
             # Also save the newly trained embeddings
-            learned_embeds = text_encoder.params["text_model"]["embeddings"]["token_embedding"]["embedding"][
-                placeholder_token_id
-            ]
+            learned_embeds = get_params_to_save(state.params)["text_model"]["embeddings"]["token_embedding"][
+                "embedding"
+            ][placeholder_token_id]
             learned_embeds_dict = {args.placeholder_token: learned_embeds}
             jnp.save(os.path.join(args.output_dir, "learned_embeds.npy"), learned_embeds_dict)
 
