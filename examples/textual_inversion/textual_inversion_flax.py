@@ -8,10 +8,6 @@ from typing import Optional
 
 import numpy as np
 import jax
-
-jax.config.update("jax_platform_name", "cpu")
-print("\n\njax.devices(): ", jax.devices())
-
 import jax.numpy as jnp
 from flax import jax_utils
 from flax.training import train_state
@@ -396,14 +392,9 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
-    text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
-    # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    vae, state_vae = FlaxAutoencoderKL.from_pretrained(
-        "duongna/" + args.pretrained_model_name_or_path, subfolder="vae"
-    )
-    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(
-        "duongna/" + args.pretrained_model_name_or_path, subfolder="unet"
-    )
+    text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    vae, state_vae = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
+    unet, state_unet = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
     # Create sampling rng
     rng = jax.random.PRNGKey(args.seed)
@@ -457,7 +448,7 @@ def main():
         def _map(params, mask, label_fn):
             for k in params:
                 if label_fn(k):
-                    mask[k] = "token_emb"
+                    mask[k] = "token_embedding"
                 else:
                     if isinstance(params[k], dict):
                         mask[k] = {}
@@ -481,7 +472,7 @@ def main():
 
     # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform(
-        {"token_emb": optimizer, "zero": zero_grads()},
+        {"token_embedding": optimizer, "zero": zero_grads()},
         create_mask(text_encoder.params, lambda s: s == "token_embedding"),
     )
 
