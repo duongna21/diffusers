@@ -610,9 +610,9 @@ def main():
                 args.output_dir,
                 params={
                     "text_encoder": get_params_to_save(state.params),
-                    "vae": get_params_to_save(state_vae),
-                    "unet": get_params_to_save(state_unet),
-                    "safety_checker": get_params_to_save(safety_checker.params),
+                    "vae": state_vae,
+                    "unet": state_unet,
+                    "safety_checker": safety_checker.params,
                 },
             )
 
