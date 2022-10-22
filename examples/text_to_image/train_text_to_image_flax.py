@@ -441,7 +441,10 @@ def main():
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Define gradient train step fn. todo: params -> state?
-    def train_step(params, batch, train_rng):
+    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
+        params = {"text_encoder": text_encoder_state.params,
+                  "vae": vae_state.params,
+                  "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
@@ -478,13 +481,10 @@ def main():
         new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
         new_unet_state = unet_state.apply_gradients(grads=grad['unet'])
-        new_params = {"text_encoder": new_text_encoder_state.params,
-              "vae": new_vae_state.params,
-              "unet": new_unet_state.params}
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
-        return new_params, metrics
+        return new_vae_state, new_text_encoder_state, new_unet_state, metrics, new_train_rng
 
     # Create parallel version of the train step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
@@ -523,7 +523,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            params, train_metric, train_rngs = p_train_step(params, batch, train_rngs)
+            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
