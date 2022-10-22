@@ -430,6 +430,7 @@ def main():
     params = {"text_encoder": text_encoder.params,
               "vae": vae_params,
               "unet": unet_params}
+    print(jax.tree_util.tree_map(lambda x: x.shape, params['vae']))
 
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer)
     vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
