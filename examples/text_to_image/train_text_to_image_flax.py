@@ -388,7 +388,6 @@ def main():
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
         input_ids = [example["input_ids"] for example in examples]
         padded_tokens = tokenizer.pad({"input_ids": input_ids}, padding=True, return_tensors="pt")
-        print('padded_tokens.input_ids.shape: ', padded_tokens.input_ids.shape)
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
