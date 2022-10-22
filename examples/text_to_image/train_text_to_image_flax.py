@@ -444,6 +444,7 @@ def main():
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
                   "unet": unet_state.params}
+        print(jax.tree_util.tree_map(lambda x: x.shape, params['vae']))
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
