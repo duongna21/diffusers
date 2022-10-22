@@ -24,7 +24,8 @@ from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")

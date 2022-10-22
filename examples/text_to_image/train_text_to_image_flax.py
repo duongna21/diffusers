@@ -31,7 +31,7 @@ from diffusers import (
     FlaxUNet2DConditionModel,
 )
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def parse_args():
