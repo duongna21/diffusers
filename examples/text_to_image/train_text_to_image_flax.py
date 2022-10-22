@@ -16,8 +16,6 @@ from datasets import load_dataset
 from flax.training import train_state
 import jax.numpy as jnp
 from flax.training.common_utils import shard
-from diffusers.optimization import get_scheduler
-from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
 from huggingface_hub import HfFolder, Repository, whoami
 from torchvision import transforms
 from tqdm.auto import tqdm
@@ -533,3 +531,6 @@ def main():
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
+
+if __name__ == "__main__":
+    main()
