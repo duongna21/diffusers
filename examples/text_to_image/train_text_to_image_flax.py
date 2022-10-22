@@ -431,7 +431,6 @@ def main():
     params = {"text_encoder": text_encoder.params,
               "vae": vae_params,
               "unet": unet_params}
-    print(jax.tree_util.tree_map(lambda x: x.shape, params['vae']))
 
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer)
     vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
@@ -446,7 +445,6 @@ def main():
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
                   "unet": unet_state.params}
-        print(jax.tree_util.tree_map(lambda x: x.shape, params['vae']))
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
@@ -486,13 +484,13 @@ def main():
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(params)
         grad = jax.lax.pmean(grad, "batch")
-        new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
+        new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
         new_unet_state = unet_state.apply_gradients(grads=grad['unet'])
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
-        return new_vae_state, new_text_encoder_state, new_unet_state, metrics, new_train_rng
+        return new_text_encoder_state, new_vae_state, new_unet_state, metrics, new_train_rng
 
     # Create parallel version of the train step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
