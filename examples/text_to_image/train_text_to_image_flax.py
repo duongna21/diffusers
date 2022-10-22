@@ -1,3 +1,4 @@
+import flax
 import argparse
 import logging
 import math
@@ -8,7 +9,6 @@ from typing import Iterable, Optional
 
 import numpy as np
 import torch
-import flax
 import torch.nn.functional as F
 import torch.utils.checkpoint
 import jax
