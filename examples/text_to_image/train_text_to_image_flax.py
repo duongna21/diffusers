@@ -400,7 +400,7 @@ def main():
 
     total_train_batch_size = args.train_batch_size * jax.local_device_count()
     train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, shuffle=True, collate_fn=collate_fn, batch_size=args.total_train_batch_size
+        train_dataset, shuffle=True, collate_fn=collate_fn, batch_size=total_train_batch_size
     )
 
     # Load models and create wrapper for stable diffusion
