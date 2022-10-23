@@ -578,7 +578,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs, dynamic_scale=dynamic_scale
+            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs, dynamic_scale=dynamic_scale)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
