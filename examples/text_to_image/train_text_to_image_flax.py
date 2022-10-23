@@ -397,7 +397,7 @@ def main():
         input_ids = [example["input_ids"] for example in examples]
 
         padded_tokens = tokenizer.pad({"input_ids": input_ids}, padding='max_length', max_length=77, return_tensors="pt")
-        print('padded_tokens.shape: ', padded_tokens.shape)
+        # print('padded_tokens.shape: ', padded_tokens.shape)
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
