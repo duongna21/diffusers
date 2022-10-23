@@ -447,7 +447,7 @@ def main():
         dynamic_scale = None
 
     # Define gradient train step fn. todo: params -> state?
-    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
+    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng, dynamic_scale=None):
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
                   "unet": unet_state.params}
@@ -578,7 +578,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
+            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs, dynamic_scale=dynamic_scale
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
