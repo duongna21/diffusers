@@ -6,7 +6,7 @@ import os
 import random
 from pathlib import Path
 from typing import Iterable, Optional
-
+from flax.training import dynamic_scale as dynamic_scale_lib
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -440,6 +440,12 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
+    platform = jax.local_devices()[0].platform
+    if args.mixed_precision and platform == 'gpu':
+        dynamic_scale = dynamic_scale_lib.DynamicScale()
+    else:
+        dynamic_scale = None
+
     # Define gradient train step fn. todo: params -> state?
     def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
@@ -481,15 +487,58 @@ def main():
 
             return loss
 
-        grad_fn = jax.value_and_grad(compute_loss)
-        loss, grad = grad_fn(params)
-        grad = jax.lax.pmean(grad, "batch")
+        if dynamic_scale:
+            grad_fn = dynamic_scale.value_and_grad(compute_loss, axis_name='batch')
+            dynamic_scale, is_fin, grad = grad_fn(params)
+            # dynamic loss takes care of averaging gradients across replicas
+        else:
+            grad_fn = jax.value_and_grad(compute_loss)
+            loss, grad = grad_fn(params)
+            grad = jax.lax.pmean(grad, "batch")
+
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
         new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
         new_unet_state = unet_state.apply_gradients(grads=grad['unet'])
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
+        import functools
+        if dynamic_scale:
+            # if is_fin == False the gradients contain Inf/NaNs and optimizer state and
+            # params should be restored (= skip this step).
+            new_text_encoder_state = new_text_encoder_state.replace(
+                opt_state=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_text_encoder_state.opt_state,
+                    text_encoder_state.opt_state),
+                params=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_text_encoder_state.params,
+                    text_encoder_state.params),
+                dynamic_scale=dynamic_scale)
+
+            new_vae_state = new_vae_state.replace(
+                opt_state=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_vae_state.opt_state,
+                    vae_state.opt_state),
+                params=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_vae_state.params,
+                    vae_state.params),
+                dynamic_scale=dynamic_scale)
+
+            new_unet_state = new_unet_state.replace(
+                opt_state=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_unet_state.opt_state,
+                    unet_state.opt_state),
+                params=jax.tree_util.tree_map(
+                    functools.partial(jnp.where, is_fin),
+                    new_unet_state.params,
+                    unet_state.params),
+                dynamic_scale=dynamic_scale)
+            metrics['scale'] = dynamic_scale.scale
         return new_text_encoder_state, new_vae_state, new_unet_state, metrics, new_train_rng
 
     # Create parallel version of the train step
