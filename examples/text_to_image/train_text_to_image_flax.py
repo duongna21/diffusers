@@ -579,6 +579,8 @@ def main():
     logger.info(f"  Total train batch size (w. parallel & distributed) = {total_train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
+    global_step = 0
+
     epochs = tqdm(range(args.num_train_epochs), desc="Epoch ... ", position=0)
     for epoch in epochs:
         # ======================== Training ================================
@@ -594,11 +596,14 @@ def main():
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
+            global_step += 1
 
         train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
+        if global_step >= args.max_train_steps:
+            break
 
 if __name__ == "__main__":
     main()
