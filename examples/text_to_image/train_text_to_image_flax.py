@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
+from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
 import jax
 import optax
 from datasets import load_dataset
@@ -264,6 +265,9 @@ class EMAModel:
 
         self.shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - self.decay * (s_param - param),
                                                     self.shadow_params, parameters)
+
+def get_params_to_save(params):
+    return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
 
 
 def main():
@@ -606,6 +610,38 @@ def main():
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
         if global_step >= args.max_train_steps:
             break
+
+        # Create the pipeline using using the trained modules and save it.
+        if jax.process_index() == 0:
+            scheduler = FlaxPNDMScheduler(
+                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
+            )
+            safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker", from_pt=True
+            )
+            pipeline = FlaxStableDiffusionPipeline(
+                text_encoder=text_encoder,
+                vae=vae,
+                unet=unet,
+                tokenizer=tokenizer,
+                scheduler=scheduler,
+                safety_checker=safety_checker,
+                feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
+            )
+
+            pipeline.save_pretrained(
+                args.output_dir,
+                params={
+                    "text_encoder": get_params_to_save(text_encoder_state.params),
+                    "vae": get_params_to_save(vae_state.params),
+                    "unet": get_params_to_save(unet_state.params),
+                    "safety_checker": safety_checker.params,
+                },
+            )
+
+            if args.push_to_hub:
+                repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
+
 
 if __name__ == "__main__":
     main()
