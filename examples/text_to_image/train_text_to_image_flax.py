@@ -501,6 +501,7 @@ def main():
         if dynamic_scale:
             grad_fn = dynamic_scale.value_and_grad(compute_loss)
             dynamic_scale, is_fin, loss, grad = grad_fn(params)
+            print('loss: ', loss)
             # dynamic loss takes care of averaging gradients across replicas
         else:
             grad_fn = jax.value_and_grad(compute_loss)
