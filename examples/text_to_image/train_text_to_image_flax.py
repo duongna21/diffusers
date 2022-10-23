@@ -603,13 +603,14 @@ def main():
 
             train_step_progress_bar.update(1)
             global_step += 1
+            if global_step >= args.max_train_steps:
+                break
 
         train_metric = jax_utils.unreplicate(train_metric)
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
-        if global_step >= args.max_train_steps:
-            break
+
 
         # Create the pipeline using using the trained modules and save it.
         if jax.process_index() == 0:
