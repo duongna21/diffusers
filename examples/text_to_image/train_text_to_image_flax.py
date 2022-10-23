@@ -193,8 +193,8 @@ def parse_args():
     parser.add_argument(
         "--mixed_precision",
         type=str,
-        default="no",
-        choices=["no", "fp16", "bf16"],
+        default=None,
+        choices=["fp16", "bf16"],
         help=(
             "Whether to use mixed precision. Choose"
             "between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >= 1.10."
