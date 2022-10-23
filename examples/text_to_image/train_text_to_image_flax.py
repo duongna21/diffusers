@@ -275,6 +275,13 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
+    import transformers
+    # Setup logging, we only want one process per machine to log things on the screen.
+    logger.setLevel(logging.INFO if jax.process_index() == 0 else logging.ERROR)
+    if jax.process_index() == 0:
+        transformers.utils.logging.set_verbosity_info()
+    else:
+        transformers.utils.logging.set_verbosity_error()
 
     if args.seed is not None:
         set_seed(args.seed)
@@ -493,7 +500,6 @@ def main():
         dynamic_scale = text_encoder_state.dynamic_scale
         if dynamic_scale:
             grad_fn = dynamic_scale.value_and_grad(compute_loss)
-            print("grad_fn(params): ",  len(grad_fn(params)))
             dynamic_scale, is_fin, loss, grad = grad_fn(params)
             # dynamic loss takes care of averaging gradients across replicas
         else:
