@@ -493,7 +493,7 @@ def main():
         dynamic_scale = text_encoder_state.dynamic_scale
         if dynamic_scale:
             grad_fn = dynamic_scale.value_and_grad(compute_loss)
-            print("grad_fn(params): ",  grad_fn(params))
+            print("grad_fn(params): ",  len(grad_fn(params)))
             dynamic_scale, is_fin, aux, grad = grad_fn(params)
             # dynamic loss takes care of averaging gradients across replicas
         else:
