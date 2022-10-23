@@ -432,13 +432,8 @@ def main():
               "vae": vae_params,
               "unet": unet_params}
 
-    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer)
-    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
-    unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
-
-    # Initialize our training
-    rng = jax.random.PRNGKey(args.seed)
-    train_rngs = jax.random.split(rng, jax.local_device_count())
+    class TrainState(train_state.TrainState):
+        dynamic_scale: dynamic_scale_lib.DynamicScale
 
     platform = jax.local_devices()[0].platform
     if args.mixed_precision and platform == 'gpu':
@@ -446,8 +441,16 @@ def main():
     else:
         dynamic_scale = None
 
+    text_encoder_state = TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer, dynamic_scale=dynamic_scale)
+    vae_state = TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer, dynamic_scale=dynamic_scale)
+    unet_state = TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer, dynamic_scale=dynamic_scale)
+
+    # Initialize our training
+    rng = jax.random.PRNGKey(args.seed)
+    train_rngs = jax.random.split(rng, jax.local_device_count())
+
     # Define gradient train step fn. todo: params -> state?
-    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng, dynamic_scale=None):
+    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
                   "unet": unet_state.params}
@@ -487,6 +490,7 @@ def main():
 
             return loss
 
+        dynamic_scale = text_encoder_state.dynamic_scale
         if dynamic_scale:
             grad_fn = dynamic_scale.value_and_grad(compute_loss, axis_name='batch')
             dynamic_scale, is_fin, grad = grad_fn(params)
