@@ -534,7 +534,7 @@ def main():
         for batch in train_dataloader:
             batch = shard(batch)
             text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, batch, train_rngs)
-            args.use_ema:
+            if args.use_ema:
                 ema_unet, decay = ema_step(ema_unet, get_params_to_save(unet_state.params), global_step, decay)
             train_metrics.append(train_metric)
 
