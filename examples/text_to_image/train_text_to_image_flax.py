@@ -36,9 +36,7 @@ from diffusers import (
 logger = logging.getLogger(__name__)
 
 import jax
-jax.config.update('jax_platform_name', 'cpu')
-os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=1'
-print(jax.devices())
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simple example of a training script.")
@@ -259,6 +257,8 @@ def get_params_to_save(params):
 
 
 def main():
+    jax.config.update('jax_platform_name', 'cpu')
+    print(jax.devices())
     args = parse_args()
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
