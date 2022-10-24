@@ -240,30 +240,15 @@ dataset_name_mapping = {
 
 
 # Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
-class EMAModel:
-    """
-    Exponential Moving Average of models weights
-    """
+@jax.jit
+def ema_step(shadow_params, parameters, optimization_step, decay):
+    value = (1 + optimization_step) / (10 + optimization_step)
+    decay = 1 - min(decay, value)
 
-    def __init__(self, parameters: Iterable[torch.nn.Parameter], decay=0.9999):
-        self.shadow_params = parameters
+    shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - decay * (s_param - param),
+                                                shadow_params, parameters)
+    return shadow_params, decay
 
-        self.decay = decay
-        self.optimization_step = 0
-
-    def get_decay(self, optimization_step):
-        """
-        Compute the decay factor for the exponential moving average.
-        """
-        value = (1 + optimization_step) / (10 + optimization_step)
-        return 1 - min(self.decay, value)
-
-    def step(self, parameters):
-        self.optimization_step += 1
-        self.decay = self.get_decay(self.optimization_step)
-
-        self.shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - self.decay * (s_param - param),
-                                                    self.shadow_params, parameters)
 
 def get_params_to_save(params):
     return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
@@ -450,7 +435,7 @@ def main():
 
     # Create EMA for the unet.
     if args.use_ema:
-        ema_unet = EMAModel(params['unet'])
+        ema_unet = params['unet']
 
     # Initialize our training
     rng = jax.random.PRNGKey(args.seed)
@@ -535,6 +520,7 @@ def main():
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
     global_step = 0
+    decay = 0.999
 
     epochs = tqdm(range(args.num_train_epochs), desc="Epoch ... ", position=0)
     for epoch in epochs:
@@ -547,9 +533,8 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
-            if args.use_ema:
-                ema_unet.step(get_params_to_save(unet_state.params))
+            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, batch, train_rngs)
+            ema_unet, decay = ema_step(ema_unet, get_params_to_save(unet_state.params), global_step, decay)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
