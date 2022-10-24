@@ -13,6 +13,7 @@ import torch.utils.checkpoint
 from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
 import jax
 jax.config.update('jax_platform_name', 'cpu')
+print(jax.devices())
 import optax
 from datasets import load_dataset
 from flax.training import train_state
