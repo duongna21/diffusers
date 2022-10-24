@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 import jax
 jax.config.update('jax_platform_name', 'cpu')
+os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=2'
 print(jax.devices())
 
 def parse_args():
