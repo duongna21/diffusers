@@ -571,7 +571,7 @@ def main():
                 params={
                     "text_encoder": get_params_to_save(text_encoder_state.params),
                     "vae": get_params_to_save(vae_state.params),
-                    "unet": ema_unet.shadow_params if args.use_ema else get_params_to_save(unet_state.params),
+                    "unet": ema_unet if args.use_ema else get_params_to_save(unet_state.params),
                     "safety_checker": safety_checker.params,
                 },
             )
