@@ -4,6 +4,9 @@ import logging
 import math
 import os
 import random
+from flax import jax_utils
+import transformers
+
 from pathlib import Path
 from typing import Iterable, Optional
 import numpy as np
@@ -263,7 +266,6 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-    import transformers
     # Setup logging, we only want one process per machine to log things on the screen.
     logger.setLevel(logging.INFO if jax.process_index() == 0 else logging.ERROR)
     if jax.process_index() == 0:
@@ -497,7 +499,6 @@ def main():
 
     # Create parallel version of the train step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
-    from flax import jax_utils
     # Replicate the train state on each device
     text_encoder_state = jax_utils.replicate(text_encoder_state)
     vae_state = jax_utils.replicate(vae_state)
