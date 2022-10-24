@@ -6,7 +6,6 @@ import os
 import random
 from pathlib import Path
 from typing import Iterable, Optional
-from flax.training import dynamic_scale as dynamic_scale_lib
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -445,18 +444,13 @@ def main():
               "vae": vae_params,
               "unet": unet_params}
 
-    class TrainState(train_state.TrainState):
-        dynamic_scale: dynamic_scale_lib.DynamicScale
+    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer)
+    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
+    unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
 
-    platform = jax.local_devices()[0].platform
-    if args.mixed_precision and platform == 'gpu':
-        dynamic_scale = dynamic_scale_lib.DynamicScale()
-    else:
-        dynamic_scale = None
-
-    text_encoder_state = TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer, dynamic_scale=dynamic_scale)
-    vae_state = TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer, dynamic_scale=dynamic_scale)
-    unet_state = TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer, dynamic_scale=dynamic_scale)
+    # Create EMA for the unet.
+    if args.use_ema:
+        ema_unet = EMAModel(params['unnet'])
 
     # Initialize our training
     rng = jax.random.PRNGKey(args.seed)
@@ -503,16 +497,9 @@ def main():
 
             return loss
 
-        dynamic_scale = text_encoder_state.dynamic_scale
-        if dynamic_scale:
-            grad_fn = dynamic_scale.value_and_grad(compute_loss)
-            dynamic_scale, is_fin, loss, grad = grad_fn(params)
-            print('loss: ', loss)
-            # dynamic loss takes care of averaging gradients across replicas
-        else:
-            grad_fn = jax.value_and_grad(compute_loss)
-            loss, grad = grad_fn(params)
-            grad = jax.lax.pmean(grad, "batch")
+        grad_fn = jax.value_and_grad(compute_loss)
+        loss, grad = grad_fn(params)
+        grad = jax.lax.pmean(grad, "batch")
 
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
         new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
@@ -520,43 +507,7 @@ def main():
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
-        import functools
-        if dynamic_scale:
-            # if is_fin == False the gradients contain Inf/NaNs and optimizer state and
-            # params should be restored (= skip this step).
-            new_text_encoder_state = new_text_encoder_state.replace(
-                opt_state=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_text_encoder_state.opt_state,
-                    text_encoder_state.opt_state),
-                params=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_text_encoder_state.params,
-                    text_encoder_state.params),
-                dynamic_scale=dynamic_scale)
 
-            new_vae_state = new_vae_state.replace(
-                opt_state=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_vae_state.opt_state,
-                    vae_state.opt_state),
-                params=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_vae_state.params,
-                    vae_state.params),
-                dynamic_scale=dynamic_scale)
-
-            new_unet_state = new_unet_state.replace(
-                opt_state=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_unet_state.opt_state,
-                    unet_state.opt_state),
-                params=jax.tree_util.tree_map(
-                    functools.partial(jnp.where, is_fin),
-                    new_unet_state.params,
-                    unet_state.params),
-                dynamic_scale=dynamic_scale)
-            metrics['scale'] = dynamic_scale.scale
         return new_text_encoder_state, new_vae_state, new_unet_state, metrics, new_train_rng
 
     # Create parallel version of the train step
@@ -566,8 +517,6 @@ def main():
     text_encoder_state = jax_utils.replicate(text_encoder_state)
     vae_state = jax_utils.replicate(vae_state)
     unet_state = jax_utils.replicate(unet_state)
-
-    # todo: EMA
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -599,6 +548,8 @@ def main():
         for batch in train_dataloader:
             batch = shard(batch)
             text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
+            if args.use_ema:
+                ema_unet.step(get_params_to_save(unet_state.params))
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
@@ -635,7 +586,7 @@ def main():
                 params={
                     "text_encoder": get_params_to_save(text_encoder_state.params),
                     "vae": get_params_to_save(vae_state.params),
-                    "unet": get_params_to_save(unet_state.params),
+                    "unet": ema_unet.shadow_params if args.use_ema else get_params_to_save(unet_state.params),
                     "safety_checker": safety_checker.params,
                 },
             )
