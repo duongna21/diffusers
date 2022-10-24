@@ -450,7 +450,7 @@ def main():
 
     # Create EMA for the unet.
     if args.use_ema:
-        ema_unet = EMAModel(params['unnet'])
+        ema_unet = EMAModel(params['unet'])
 
     # Initialize our training
     rng = jax.random.PRNGKey(args.seed)
