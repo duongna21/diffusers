@@ -491,7 +491,7 @@ def main():
 
         def compute_loss(params):
             vae_outputs = vae.apply(
-                {"params": state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode
+                {"params": state_vae}, batch["pixel_values"], deterministic=False, method=vae.encode
             )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
@@ -512,7 +512,7 @@ def main():
                 batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True
             )[0]
             unet_outputs = unet.apply(
-                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False
+                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=True
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
