@@ -491,7 +491,7 @@ def main():
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Define gradient train step fn
-    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
+    def train_step(text_encoder_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
                   "vae": state_vae,
                   "unet": state_unet}
@@ -554,8 +554,8 @@ def main():
 
     # Replicate the train state on each device
     text_encoder_state = jax_utils.replicate(text_encoder_state)
-    vae_state = jax_utils.replicate(vae_state)
-    unet_state = jax_utils.replicate(unet_state)
+    # vae_state = jax_utils.replicate(vae_state)
+    # unet_state = jax_utils.replicate(unet_state)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -584,7 +584,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
+            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
