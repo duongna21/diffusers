@@ -620,6 +620,7 @@ def main():
                 "embedding"
             ][placeholder_token_id]
             learned_embeds_dict = {args.placeholder_token: learned_embeds}
+            torch.save({args.placeholder_token: torch.tensor(np.array(learned_embeds))}, "learned_embeds.bin")
             jnp.save(os.path.join(args.output_dir, "learned_embeds.npy"), learned_embeds_dict)
 
             if args.push_to_hub:
