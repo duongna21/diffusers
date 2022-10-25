@@ -6,6 +6,7 @@ import os
 import random
 from flax import jax_utils
 import transformers
+import jax
 
 from pathlib import Path
 from typing import Iterable, Optional
@@ -34,8 +35,6 @@ from diffusers import (
 )
 
 logger = logging.getLogger(__name__)
-
-import jax
 
 
 def parse_args():
@@ -257,8 +256,6 @@ def get_params_to_save(params):
 
 
 def main():
-    jax.config.update('jax_platform_name', 'cpu')
-    print(jax.devices())
     args = parse_args()
     logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
