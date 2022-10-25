@@ -246,7 +246,7 @@ dataset_name_mapping = {
 # Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
 def ema_step(shadow_params, parameters, optimization_step, decay):
     value = (1 + optimization_step) / (10 + optimization_step)
-    decay = 1 - min(decay, value)
+    # decay = 1 - min(decay, value)
     shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - decay * (s_param - param),
                                                 shadow_params, parameters)
     return shadow_params, decay
