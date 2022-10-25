@@ -460,6 +460,10 @@ def main():
         _map(params, mask, label_fn)
         return mask
 
+    params = {"text_encoder": text_encoder.params,
+              "vae": state_vae,
+              "unet": state_unet}
+
     def zero_grads():
         # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
         def init_fn(_):
@@ -473,11 +477,10 @@ def main():
     # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform(
         {"token_embedding": optimizer, "zero": zero_grads()},
-        create_mask(text_encoder.params, lambda s: s == "token_embedding"),
+        create_mask(params, lambda s: s == "token_embedding"),
     )
-    params = {"text_encoder": text_encoder.params,
-              "vae": state_vae,
-              "unet": state_unet}
+    print(create_mask(params, lambda s: s == "token_embedding"))
+
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
                                                        tx=tx)
@@ -496,18 +499,17 @@ def main():
                   "vae": vae_state.params,
                   "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
-        vae_outputs = vae.apply(
-            {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
-        )
-        latents = vae_outputs.latent_dist.sample(sample_rng)
-        # (NHWC) -> (NCHW)
-        latents = jnp.transpose(latents, (0, 3, 1, 2))
-        latents = latents * 0.18215
-
-
 
         def compute_loss(params, latents):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
+            vae_outputs = vae.apply(
+                {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
+            )
+            latents = vae_outputs.latent_dist.sample(sample_rng)
+            # (NHWC) -> (NCHW)
+            latents = jnp.transpose(latents, (0, 3, 1, 2))
+            latents = latents * 0.18215
+
             noise_rng, timestep_rng = jax.random.split(sample_rng)
             noise = jax.random.normal(noise_rng, latents.shape)
             bsz = latents.shape[0]
@@ -525,7 +527,7 @@ def main():
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
             unet_outputs = unet.apply(
-                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False
+                {"params": params['unet']}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
@@ -534,7 +536,7 @@ def main():
             return loss
 
         grad_fn = jax.value_and_grad(compute_loss)
-        loss, grad = grad_fn(params, latents)
+        loss, grad = grad_fn(params)
         grad = jax.lax.pmean(grad, "batch")
 
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
