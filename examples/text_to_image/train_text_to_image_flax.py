@@ -415,20 +415,23 @@ def main():
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
-    optimizer = optax.adamw(
-        learning_rate=constant_scheduler,
+    adamw = optax.adamw(learning_rate=constant_scheduler,
         b1=args.adam_beta1,
         b2=args.adam_beta2,
         eps=args.adam_epsilon,
-        weight_decay=args.adam_weight_decay,
+        weight_decay=args.adam_weight_decay,)
+
+    optimizer = optax.chain(
+        optax.clip(1.0),
+        adamw,
     )
 
     params = {"text_encoder": text_encoder.params,
               "vae": vae_params,
               "unet": unet_params}
 
-    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=optimizer)
-    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
+    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=adamw)
+    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=adamw)
     unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
 
     # Create EMA for the unet.
