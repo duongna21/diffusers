@@ -400,10 +400,10 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     rng, _ = jax.random.split(rng)
     # Resize the token embeddings as we are adding new special tokens to the tokenizer
-    # text_encoder = resize_token_embeddings(
-    #     text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng
-    # )
-    # original_token_embeds = text_encoder.params["text_model"]["embeddings"]["token_embedding"]["embedding"]
+    text_encoder = resize_token_embeddings(
+        text_encoder, len(tokenizer), initializer_token_id, placeholder_token_id, rng
+    )
+    original_token_embeds = text_encoder.params["text_model"]["embeddings"]["token_embedding"]["embedding"]
 
     train_dataset = TextualInversionDataset(
         data_root=args.train_data_dir,
@@ -480,7 +480,7 @@ def main():
               "unet": state_unet}
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
-                                                       tx=optimizer)
+                                                       tx=tx)
     vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
     unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
     noise_scheduler = FlaxDDPMScheduler(
@@ -538,13 +538,17 @@ def main():
         grad = jax.lax.pmean(grad, "batch")
 
         new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
-        new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
-        new_unet_state = unet_state.apply_gradients(grads=grad['unet'])
+        # Keep the token embeddings fixed except the newly added embeddings for the concept,
+        # as we only want to optimize the concept embeddings
+        token_embeds = original_token_embeds.at[placeholder_token_id].set(
+            new_text_encoder_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"][placeholder_token_id]
+        )
+        new_text_encoder_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"] = token_embeds
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
 
-        return new_text_encoder_state, new_vae_state, new_unet_state, metrics, new_train_rng
+        return new_text_encoder_state, metrics, new_train_rng
 
     # Create parallel version of the train and eval step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
@@ -581,7 +585,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
+            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
@@ -612,7 +616,7 @@ def main():
             pipeline.save_pretrained(
                 args.output_dir,
                 params={
-                    "text_encoder": get_params_to_save(state.params),
+                    "text_encoder": get_params_to_save(text_encoder_state.params),
                     "vae": state_vae,
                     "unet": state_unet,
                     "safety_checker": safety_checker.params,
@@ -620,11 +624,11 @@ def main():
             )
 
             # Also save the newly trained embeddings
-            # learned_embeds = get_params_to_save(state.params)["text_model"]["embeddings"]["token_embedding"][
-            #     "embedding"
-            # ][placeholder_token_id]
+            learned_embeds = get_params_to_save(text_encoder_state.params)["text_model"]["embeddings"]["token_embedding"][
+                "embedding"
+            ][placeholder_token_id]
             # learned_embeds_dict = {args.placeholder_token: learned_embeds}
-            # jnp.save(os.path.join(args.output_dir, "learned_embeds.npy"), learned_embeds_dict)
+            jnp.save(os.path.join(args.output_dir, "learned_embeds.npy"), learned_embeds)
 
             if args.push_to_hub:
                 repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
