@@ -536,7 +536,7 @@ def main():
             if args.use_ema:
                 value = (1 + global_step) / (10 + global_step)
                 decay = 1 - min(decay, value)
-                ema_unet = ema_step(ema_unet, unet_params, decay)
+                ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
