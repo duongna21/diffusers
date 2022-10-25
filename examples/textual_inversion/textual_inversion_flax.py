@@ -482,7 +482,7 @@ def main():
     print(create_mask(params, lambda s: s == "token_embedding"))
 
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
-    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params,
+    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
                                                        tx=tx)
     # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
     # unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
