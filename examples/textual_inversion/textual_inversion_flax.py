@@ -496,18 +496,18 @@ def main():
                   "vae": vae_state.params,
                   "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
+        vae_outputs = vae.apply(
+            {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
+        )
+        latents = vae_outputs.latent_dist.sample(sample_rng)
+        # (NHWC) -> (NCHW)
+        latents = jnp.transpose(latents, (0, 3, 1, 2))
+        latents = latents * 0.18215
 
-        def compute_loss(params):
+
+
+        def compute_loss(params, latents):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
-            vae_outputs = vae.apply(
-                {"params": params['vae']}, batch["pixel_values"], deterministic=False, method=vae.encode
-            )
-            print(batch["pixel_values"].shape)
-            latents = vae_outputs.latent_dist.sample(sample_rng)
-            # (NHWC) -> (NCHW)
-            latents = jnp.transpose(latents, (0, 3, 1, 2))
-            latents = latents * 0.18215
-
             noise_rng, timestep_rng = jax.random.split(sample_rng)
             noise = jax.random.normal(noise_rng, latents.shape)
             bsz = latents.shape[0]
@@ -518,14 +518,14 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            print(batch["input_ids"].shape)
+
             encoder_hidden_states = text_encoder_state.apply_fn(
                 batch["input_ids"], params=params['text_encoder'], dropout_rng=dropout_rng, train=True)[0]
             # unet_outputs = unet_state.apply_fn(
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
             unet_outputs = unet.apply(
-                {"params": params['unet']}, noisy_latents, timesteps, encoder_hidden_states, train=True
+                {"params": params['unet']}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
