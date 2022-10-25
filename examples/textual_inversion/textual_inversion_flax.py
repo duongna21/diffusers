@@ -492,15 +492,15 @@ def main():
 
     # Define gradient train step fn
     def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
-        params = {"text_encoder": text_encoder_state.params,
-                  "vae": vae_state.params,
-                  "unet": unet_state.params}
+        # params = {"text_encoder": text_encoder_state.params,
+        #           "vae": vae_state.params,
+        #           "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
             vae_outputs = vae.apply(
-                {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
+                {"params": vae_state.param}, batch["pixel_values"], deterministic=True, method=vae.encode
             )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
@@ -519,12 +519,12 @@ def main():
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
             encoder_hidden_states = text_encoder_state.apply_fn(
-                batch["input_ids"], params=params['text_encoder'], dropout_rng=dropout_rng, train=True)[0]
+                batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True)[0]
             # unet_outputs = unet_state.apply_fn(
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
             unet_outputs = unet.apply(
-                {"params": params['unet']}, noisy_latents, timesteps, encoder_hidden_states, train=False
+                {"params": unet_state.params}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
@@ -533,10 +533,10 @@ def main():
             return loss
 
         grad_fn = jax.value_and_grad(compute_loss)
-        loss, grad = grad_fn(params)
+        loss, grad = grad_fn(text_encoder_state.params)
         grad = jax.lax.pmean(grad, "batch")
 
-        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
+        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad)
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
         # as we only want to optimize the concept embeddings
         token_embeds = original_token_embeds.at[placeholder_token_id].set(
