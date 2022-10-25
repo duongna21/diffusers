@@ -497,7 +497,7 @@ def main():
                   "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
-        def compute_loss(params, latents):
+        def compute_loss(params):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
             vae_outputs = vae.apply(
                 {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
