@@ -244,11 +244,12 @@ dataset_name_mapping = {
 
 
 # Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
-@jax.jit
-def ema_step(shadow_params, parameters, decay):
+def ema_step(shadow_params, parameters, optimization_step, decay):
+    value = (1 + optimization_step) / (10 + optimization_step)
+    decay = 1 - min(decay, value)
     shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - decay * (s_param - param),
                                                 shadow_params, parameters)
-    return shadow_params
+    return shadow_params, decay
 
 
 def get_params_to_save(params):
@@ -442,8 +443,7 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    # Define gradient train step fn. todo: params -> state?
-    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
+    def train_step(text_encoder_state, vae_state, unet_state, batch, ema_unet, optimization_step, decay, train_rng):
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
                   "unet": unet_state.params}
@@ -491,10 +491,12 @@ def main():
         new_vae_state = vae_state.apply_gradients(grads=grad['vae'])
         new_unet_state = unet_state.apply_gradients(grads=grad['unet'])
 
+        new_ema_unet, new_decay = ema_step(ema_unet, new_unet_state.params, global_step, decay)
+
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
 
-        return new_text_encoder_state, new_vae_state, new_unet_state, metrics, new_train_rng
+        return new_text_encoder_state, new_vae_state, new_unet_state, new_ema_unet, new_decay, metrics, new_train_rng
 
     # Create parallel version of the train step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
@@ -502,6 +504,7 @@ def main():
     text_encoder_state = jax_utils.replicate(text_encoder_state)
     vae_state = jax_utils.replicate(vae_state)
     unet_state = jax_utils.replicate(unet_state)
+    ema_unet = jax_utils.replicate(ema_unet)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -521,6 +524,8 @@ def main():
 
     global_step = 0
     decay = 0.999
+    global_step = jax_utils.replicate(global_step)
+    decay = jax_utils.replicate(decay)
 
     epochs = tqdm(range(args.num_train_epochs), desc="Epoch ... ", position=0)
     for epoch in epochs:
@@ -533,11 +538,23 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
             if args.use_ema:
-                value = (1 + global_step) / (10 + global_step)
-                decay = 1 - min(decay, value)
+                text_encoder_state, vae_state, unet_state, ema_unet, decay, train_metric, train_rngs = p_train_step(text_encoder_state,
+                                                                                                   vae_state,
+                                                                                                   unet_state, batch,
+                                                                                                             ema_unet,
+                                                                                                   global_step,
+                                                                                                             decay,
+                                                                                                             train_rngs)
+
+
                 ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
+            else:
+                text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state,
+                                                                                                   vae_state,
+                                                                                                   unet_state, batch,
+                                                                                                   train_rngs)
+
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
