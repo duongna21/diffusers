@@ -481,8 +481,8 @@ def main():
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
                                                        tx=tx)
-    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
-    unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
+    # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
+    # unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
     noise_scheduler = FlaxDDPMScheduler(
         beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
     )
@@ -491,7 +491,7 @@ def main():
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Define gradient train step fn
-    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
+    def train_step(text_encoder_state, vae_params, unet_params, batch, train_rng):
         # params = {"text_encoder": text_encoder_state.params,
         #           "vae": vae_state.params,
         #           "unet": unet_state.params}
@@ -500,7 +500,7 @@ def main():
         def compute_loss(params):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
             vae_outputs = vae.apply(
-                {"params": vae_state.params}, batch["pixel_values"], deterministic=True, method=vae.encode
+                {"params": vae_params}, batch["pixel_values"], deterministic=True, method=vae.encode
             )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
@@ -524,7 +524,7 @@ def main():
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
             unet_outputs = unet.apply(
-                {"params": unet_state.params}, noisy_latents, timesteps, encoder_hidden_states, train=False
+                {"params": unet_params}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
@@ -554,8 +554,8 @@ def main():
 
     # Replicate the train state on each device
     text_encoder_state = jax_utils.replicate(text_encoder_state)
-    vae_state = jax_utils.replicate(vae_state)
-    unet_state = jax_utils.replicate(unet_state)
+    vae_params = jax_utils.replicate(state_vae)
+    unet_params = jax_utils.replicate(state_unet)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
@@ -584,7 +584,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
+            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_params, unet_params, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
