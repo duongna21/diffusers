@@ -500,7 +500,7 @@ def main():
         def compute_loss(params):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
             vae_outputs = vae.apply(
-                {"params": vae_state.param}, batch["pixel_values"], deterministic=True, method=vae.encode
+                {"params": vae_state.params}, batch["pixel_values"], deterministic=True, method=vae.encode
             )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
