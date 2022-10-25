@@ -385,11 +385,9 @@ def main():
         input_ids = [example["input_ids"] for example in examples]
 
         padded_tokens = tokenizer.pad({"input_ids": input_ids}, padding='max_length', max_length=77, return_tensors="pt")
-        # print('padded_tokens.shape: ', padded_tokens.shape)
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
-            "attention_mask": padded_tokens.attention_mask,
         }
         batch = {k: v.numpy() for k, v in batch.items()}
 
