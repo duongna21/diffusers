@@ -490,8 +490,9 @@ def main():
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
+            print(batch["pixel_values"].shape)
             vae_outputs = vae.apply(
-                {"params": state_vae}, batch["pixel_values"], deterministic=False, method=vae.encode
+                {"params": state_vae}, batch["pixel_values"], deterministic=True, method=vae.encode
             )
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
@@ -508,11 +509,12 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+            print(batch["input_ids"].shape)
             encoder_hidden_states = state.apply_fn(
                 batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True
             )[0]
             unet_outputs = unet.apply(
-                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=True
+                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
