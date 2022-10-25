@@ -482,7 +482,7 @@ def main():
     print(create_mask(params, lambda s: s == "token_embedding"))
 
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
-    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
+    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params,
                                                        tx=tx)
     # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
     # unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
@@ -539,7 +539,7 @@ def main():
         loss, grad = grad_fn(params)
         grad = jax.lax.pmean(grad, "batch")
 
-        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
+        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad)
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
         # as we only want to optimize the concept embeddings
         token_embeds = original_token_embeds.at[placeholder_token_id].set(
