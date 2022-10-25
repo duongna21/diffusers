@@ -525,7 +525,7 @@ def main():
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
             unet_outputs = unet.apply(
-                {"params": params['unet']}, noisy_latents, timesteps, encoder_hidden_states, train=False
+                {"params": state_unet}, noisy_latents, timesteps, encoder_hidden_states, train=False
             )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
