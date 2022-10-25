@@ -477,9 +477,9 @@ def main():
     # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform(
         {"token_embedding": optimizer, "zero": zero_grads()},
-        create_mask(params, lambda s: s == "token_embedding"),
+        create_mask(params['text_encoder'], lambda s: s == "token_embedding"),
     )
-    print(create_mask(params, lambda s: s == "token_embedding"))
+    # print(create_mask(params, lambda s: s == "token_embedding"))
 
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
@@ -539,7 +539,7 @@ def main():
         loss, grad = grad_fn(params)
         grad = jax.lax.pmean(grad, "batch")
 
-        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad)
+        new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad['text_encoder'])
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
         # as we only want to optimize the concept embeddings
         token_embeds = original_token_embeds.at[placeholder_token_id].set(
