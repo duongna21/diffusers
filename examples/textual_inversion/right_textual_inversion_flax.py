@@ -391,8 +391,8 @@ def main():
     placeholder_token_id = tokenizer.convert_tokens_to_ids(args.placeholder_token)
 
     # Load models and create wrapper for stable diffusion
-    # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
     text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
+    # text_encoder = FlaxCLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
     vae, vae_params = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet, unet_params = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
@@ -560,6 +560,8 @@ def main():
     logger.info(f"  Total train batch size (w. parallel & distributed) = {total_train_batch_size}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
+    global_step = 0
+
     epochs = tqdm(range(args.num_train_epochs), desc=f"Epoch ... (1/{args.num_train_epochs})", position=0)
     for epoch in epochs:
         # ======================== Training ================================
@@ -575,6 +577,10 @@ def main():
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
+            global_step += 1
+
+            if global_step >= args.max_train_steps:
+                break
 
         train_metric = jax_utils.unreplicate(train_metric)
 
@@ -603,8 +609,8 @@ def main():
                 args.output_dir,
                 params={
                     "text_encoder": get_params_to_save(state.params),
-                    "vae": state_vae,
-                    "unet": state_unet,
+                    "vae": get_params_to_save(vae_params),
+                    "unet": get_params_to_save(unet_params),
                     "safety_checker": safety_checker.params,
                 },
             )
