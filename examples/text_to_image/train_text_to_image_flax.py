@@ -548,7 +548,6 @@ def main():
                                                                                                              train_rngs)
 
 
-                ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
             else:
                 text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state,
                                                                                                    vae_state,
