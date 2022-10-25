@@ -460,10 +460,6 @@ def main():
         _map(params, mask, label_fn)
         return mask
 
-    params = {"text_encoder": text_encoder.params,
-              "vae": state_vae,
-              "unet": state_unet}
-
     def zero_grads():
         # from https://github.com/deepmind/optax/issues/159#issuecomment-896459491
         def init_fn(_):
@@ -477,10 +473,11 @@ def main():
     # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform(
         {"token_embedding": optimizer, "zero": zero_grads()},
-        create_mask(params, lambda s: s == "token_embedding"),
+        create_mask(text_encoder.params, lambda s: s == "token_embedding"),
     )
-    print(create_mask(params, lambda s: s == "token_embedding"))
-
+    params = {"text_encoder": text_encoder.params,
+              "vae": state_vae,
+              "unet": state_unet}
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
                                                        tx=tx)
@@ -500,7 +497,7 @@ def main():
                   "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
-        def compute_loss(params):
+        def compute_loss(params, latents):
             # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
             vae_outputs = vae.apply(
                 {"params": params['vae']}, batch["pixel_values"], deterministic=True, method=vae.encode
@@ -557,8 +554,8 @@ def main():
 
     # Replicate the train state on each device
     text_encoder_state = jax_utils.replicate(text_encoder_state)
-    # vae_state = jax_utils.replicate(vae_state)
-    # unet_state = jax_utils.replicate(unet_state)
+    vae_state = jax_utils.replicate(vae_state)
+    unet_state = jax_utils.replicate(unet_state)
 
     # Train!
     num_update_steps_per_epoch = math.ceil(len(train_dataloader))
