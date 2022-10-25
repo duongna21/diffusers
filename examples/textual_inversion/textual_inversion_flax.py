@@ -477,15 +477,15 @@ def main():
     # Zero out gradients of layers other than the token embedding layer
     tx = optax.multi_transform(
         {"token_embedding": optimizer, "zero": zero_grads()},
-        create_mask(params['text_encoder'], lambda s: s == "token_embedding"),
+        create_mask(params, lambda s: s == "token_embedding"),
     )
-    # print(create_mask(params, lambda s: s == "token_embedding"))
+    print(create_mask(params, lambda s: s == "token_embedding"))
 
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
     text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
                                                        tx=tx)
-    # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
-    # unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
+    vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
+    unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
     noise_scheduler = FlaxDDPMScheduler(
         beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
     )
@@ -494,10 +494,10 @@ def main():
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Define gradient train step fn
-    def train_step(text_encoder_state, batch, train_rng):
+    def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
-                  "vae": state_vae,
-                  "unet": state_unet}
+                  "vae": vae_state.params,
+                  "unet": unet_state.params}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
@@ -587,7 +587,7 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, batch, train_rngs)
+            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
