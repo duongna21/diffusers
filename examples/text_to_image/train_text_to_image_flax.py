@@ -451,6 +451,7 @@ def main():
             vae_outputs = vae.apply(
                 {"params": params['vae']}, batch["pixel_values"], deterministic=False, method=vae.encode
             )
+            print(batch["pixel_values"].shape)
             latents = vae_outputs.latent_dist.sample(sample_rng)
             # (NHWC) -> (NCHW)
             latents = jnp.transpose(latents, (0, 3, 1, 2))
@@ -466,6 +467,7 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+            print(batch["input_ids"].shape)
             encoder_hidden_states = text_encoder_state.apply_fn(
                 batch["input_ids"], params=params['text_encoder'], dropout_rng=dropout_rng,train=True)[0]
             # unet_outputs = unet_state.apply_fn(
