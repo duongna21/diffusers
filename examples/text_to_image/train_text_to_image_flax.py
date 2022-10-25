@@ -422,7 +422,7 @@ def main():
         weight_decay=args.adam_weight_decay,)
 
     optimizer = optax.chain(
-        optax.clip(1.0),
+        optax.clip_by_global_norm(args.max_grad_norm),
         adamw,
     )
 
