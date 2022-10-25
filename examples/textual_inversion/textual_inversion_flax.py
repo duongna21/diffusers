@@ -493,8 +493,8 @@ def main():
     # Define gradient train step fn
     def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
-                  "vae": vae_state.params,
-                  "unet": unet_state.params}
+                  "vae": state_vae,
+                  "unet": state_unet}
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
