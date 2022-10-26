@@ -413,7 +413,6 @@ def main():
             # Sample noise that we'll add to the latents
             noise_rng, timestep_rng = jax.random.split(sample_rng)
             noise = jax.random.normal(noise_rng, latents.shape)
-
             # Sample a random timestep for each image
             bsz = latents.shape[0]
             timesteps = jax.random.randint(
@@ -437,7 +436,9 @@ def main():
             )[0]
 
             # Predict the noise residual and compute loss
-            unet_outputs = state.apply_fn(noisy_latents, timesteps, encoder_hidden_states, params=params, train=True)
+            unet_outputs = unet.apply(
+                {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
+            )
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
             loss = loss.mean()
