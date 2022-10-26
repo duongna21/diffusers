@@ -655,9 +655,9 @@ def main():
         pipeline.save_pretrained(
             args.output_dir,
             params={
-                "text_encoder": get_params_to_save(text_encoder_params),
+                "text_encoder": get_params_to_save(text_encoder_state.params),
                 "vae": get_params_to_save(vae_params),
-                "unet": get_params_to_save(state.params),
+                "unet": get_params_to_save(unet_state.params),
                 "safety_checker": safety_checker.params,
             },
         )
