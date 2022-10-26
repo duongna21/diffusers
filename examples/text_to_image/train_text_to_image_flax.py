@@ -350,7 +350,6 @@ def main():
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
-            "attention_mask": padded_tokens.attention_mask,
         }
         batch = {k: v.numpy() for k, v in batch.items()}
 
@@ -366,7 +365,6 @@ def main():
     text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
     vae, vae_params = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet, unet_params = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
-
 
     # Optimization
     if args.scale_lr:
@@ -429,16 +427,12 @@ def main():
             # Get the text embedding for conditioning
             encoder_hidden_states = text_encoder(
                 batch["input_ids"],
-                batch["attention_mask"],
                 params=text_encoder_params,
-                dropout_rng=dropout_rng,
                 train=False,
             )[0]
 
             # Predict the noise residual and compute loss
-            unet_outputs = unet.apply(
-                {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
-            )
+            unet_outputs = unet.apply({"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True)
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
             loss = loss.mean()

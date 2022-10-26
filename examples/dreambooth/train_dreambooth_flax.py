@@ -1,12 +1,11 @@
 import argparse
+import hashlib
 import logging
 import math
 import os
 import random
 from pathlib import Path
 from typing import Optional
-from PIL import Image
-import hashlib
 
 import numpy as np
 import torch
@@ -30,6 +29,7 @@ from flax import jax_utils
 from flax.training import train_state
 from flax.training.common_utils import shard
 from huggingface_hub import HfFolder, Repository, whoami
+from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPFeatureExtractor, CLIPTokenizer, FlaxCLIPTextModel, set_seed
@@ -323,6 +323,7 @@ def get_full_repo_name(model_id: str, organization: Optional[str] = None, token:
     else:
         return f"{organization}/{model_id}"
 
+
 def get_params_to_save(params):
     return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
 
@@ -360,7 +361,6 @@ def main():
                     gitignore.write("epoch_*\n")
         elif args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
-
 
     if args.with_prior_preservation:
         class_images_dir = Path(args.class_data_dir)
@@ -413,7 +413,6 @@ def main():
         elif args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
 
-
     # Load the tokenizer and add the placeholder token as a additional special token
     if args.tokenizer_name:
         tokenizer = CLIPTokenizer.from_pretrained(args.tokenizer_name)
@@ -443,7 +442,9 @@ def main():
         pixel_values = torch.stack(pixel_values)
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
 
-        input_ids = tokenizer.pad({"input_ids": input_ids}, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt").input_ids
+        input_ids = tokenizer.pad(
+            {"input_ids": input_ids}, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt"
+        ).input_ids
 
         batch = {
             "input_ids": input_ids,
@@ -460,8 +461,7 @@ def main():
     # Load models and create wrapper for stable diffusion
     text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
     vae, vae_params = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
-    unet, unet_params = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path,
-                                                                     subfolder="unet")
+    unet, unet_params = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
 
     # Optimization
     if args.scale_lr:
@@ -469,7 +469,7 @@ def main():
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
-    optimizer = optax.adamw(
+    adamw = optax.adamw(
         learning_rate=constant_scheduler,
         b1=args.adam_beta1,
         b2=args.adam_beta2,
@@ -477,9 +477,15 @@ def main():
         weight_decay=args.adam_weight_decay,
     )
 
+    optimizer = optax.chain(
+        optax.clip_by_global_norm(args.max_grad_norm),
+        adamw,
+    )
+
     unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=unet_params, tx=optimizer)
-    if args.train_text_encoder:
-        text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
+    text_encoder_state = train_state.TrainState.create(
+        apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer
+    )
 
     noise_scheduler = FlaxDDPMScheduler(
         beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
@@ -489,12 +495,13 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    def train_step(unet_state, text_encoder_state, text_encoder_params, vae_params, batch, train_rng):
+    def train_step(unet_state, text_encoder_state, vae_params, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         if args.train_text_encoder:
-            params = {'text_encoder': text_encoder_state.params,
-                      'unet': unet_state.params}
+            params = {"text_encoder": text_encoder_state.params, "unet": unet_state.params}
+        else:
+            params = {"unet": unet}
 
         def compute_loss(params):
             # Convert images to latent space
@@ -524,36 +531,140 @@ def main():
 
             # Get the text embedding for conditioning
             if args.train_text_encoder:
-                encoder_hidden_states = text_encoder_state.apply_fn(batch['input_ids'], params=params['text_encoder'], dropout_rng=dropout_rng, train=True)[0]
+                encoder_hidden_states = text_encoder_state.apply_fn(
+                    batch["input_ids"], params=params["text_encoder"], dropout_rng=dropout_rng, train=True
+                )[0]
             else:
                 encoder_hidden_states = text_encoder(
-                    batch["input_ids"],
-                    params=text_encoder_params,
-                    dropout_rng=dropout_rng,
-                    train=False,
+                    batch["input_ids"], params=text_encoder_state.params, train=False
                 )[0]
 
             # Predict the noise residual
-            unet_outputs = unet_state.apply_fn(noisy_latents, timesteps, encoder_hidden_states, params=params, train=True)
-
+            unet_outputs = unet.apply(
+                {"params": params["unet"]}, noisy_latents, timesteps, encoder_hidden_states, train=True
+            )
             noise_pred = unet_outputs.sample
-            loss = (noise - noise_pred) ** 2
-            loss = loss.mean()
+
+            if args.with_prior_preservation:
+                # Chunk the noise and noise_pred into two parts and compute the loss on each part separately.
+                noise_pred, noise_pred_prior = jnp.split(noise_pred, 2, axis=0)
+                noise, noise_prior = jnp.split(noise, 2, axis=0)
+
+                # Compute instance loss
+                loss = (noise - noise_pred) ** 2
+                loss = loss.mean()
+
+                # Compute prior loss
+                prior_loss = (noise_prior - noise_pred_prior) ** 2
+                prior_loss = prior_loss.mean()
+
+                # Add the prior loss to the instance loss.
+                loss = loss + args.prior_loss_weight * prior_loss
+            else:
+                loss = (noise - noise_pred) ** 2
+                loss = loss.mean()
 
             return loss
 
         grad_fn = jax.value_and_grad(compute_loss)
-        loss, grad = grad_fn(state.params)
+        loss, grad = grad_fn(params)
         grad = jax.lax.pmean(grad, "batch")
 
-        new_state = state.apply_gradients(grads=grad)
+        new_unet_state = unet_state.apply_gradients(grads=grad["unet"])
+        if args.train_text_encoder:
+            new_text_encoder_state = text_encoder_state.apply_gradients(grads=grad["text_encoder"])
+        else:
+            new_text_encoder_state = text_encoder_state
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
 
-        return new_state, metrics, new_train_rng
+        return new_unet_state, new_text_encoder_state, metrics, new_train_rng
+
+    # Create parallel version of the train step
+    p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0, 1))
+
+    # Replicate the train state on each device
+    unet_state = jax_utils.replicate(unet_state)
+    text_encoder_state = jax_utils.replicate(text_encoder_state)
+    vae_params = jax_utils.replicate(vae_params)
+
+    # Train!
+    num_update_steps_per_epoch = math.ceil(len(train_dataloader))
+
+    # Scheduler and math around the number of training steps.
+    if args.max_train_steps is None:
+        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+
+    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+
+    logger.info("***** Running training *****")
+    logger.info(f"  Num examples = {len(train_dataset)}")
+    logger.info(f"  Num Epochs = {args.num_train_epochs}")
+    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
+    logger.info(f"  Total train batch size (w. parallel & distributed) = {total_train_batch_size}")
+    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+
+    global_step = 0
+
+    epochs = tqdm(range(args.num_train_epochs), desc="Epoch ... ", position=0)
+    for epoch in epochs:
+        # ======================== Training ================================
+
+        train_metrics = []
+
+        steps_per_epoch = len(train_dataset) // total_train_batch_size
+        train_step_progress_bar = tqdm(total=steps_per_epoch, desc="Training...", position=1, leave=False)
+        # train
+        for batch in train_dataloader:
+            batch = shard(batch)
+            unet_state, text_encoder_state, train_metric, train_rngs = p_train_step(
+                unet_state, text_encoder_state, vae_params, batch, train_rngs
+            )
+            train_metrics.append(train_metric)
+
+            train_step_progress_bar.update(1)
+
+            global_step += 1
+            if global_step >= args.max_train_steps:
+                break
+
+        train_metric = jax_utils.unreplicate(train_metric)
+
+        train_step_progress_bar.close()
+        epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
+
+    # Create the pipeline using using the trained modules and save it.
+    if jax.process_index() == 0:
+        scheduler = FlaxPNDMScheduler(
+            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
+        )
+        safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker", from_pt=True
+        )
+        pipeline = FlaxStableDiffusionPipeline(
+            text_encoder=text_encoder,
+            vae=vae,
+            unet=unet,
+            tokenizer=tokenizer,
+            scheduler=scheduler,
+            safety_checker=safety_checker,
+            feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
+        )
+
+        pipeline.save_pretrained(
+            args.output_dir,
+            params={
+                "text_encoder": get_params_to_save(text_encoder_params),
+                "vae": get_params_to_save(vae_params),
+                "unet": get_params_to_save(state.params),
+                "safety_checker": safety_checker.params,
+            },
+        )
+
+        if args.push_to_hub:
+            repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
 
 
-
-
-
+if __name__ == "__main__":
+    main()
