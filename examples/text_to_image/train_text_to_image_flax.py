@@ -246,7 +246,7 @@ dataset_name_mapping = {
 # Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
 @jax.jit
 def ema_step(shadow_params, parameters, decay):
-    shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - decay * (s_param - param),
+    shadow_params = jax.tree_util.tree_map(lambda s_param, param: (1-decay) * s_param + decay * param,
                                                 shadow_params, parameters)
     return shadow_params
 
@@ -526,7 +526,10 @@ def main():
             unet_state, train_metric, train_rngs = p_train_step(unet_state, text_encoder_params, vae_params, batch, train_rngs)
             if args.use_ema:
                 value = (1 + global_step) / (10 + global_step)
+                print(f"decay: {decay}, value: {value}")
                 decay = 1 - min(decay, value)
+                print(f"decay step {global_step}: {decay}")
+
                 ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
             train_metrics.append(train_metric)
 
