@@ -252,6 +252,7 @@ class EMAModel:
         Compute the decay factor for the exponential moving average.
         """
         value = (1 + optimization_step) / (10 + optimization_step)
+        print(f"self.decay: {self.decay}, value: {value}")
         return 1 - min(self.decay, value)
 
     @torch.no_grad()
