@@ -371,7 +371,8 @@ def main():
             def create_key(seed=0):
                 return jax.random.PRNGKey(seed)
 
-            rng = create_key(10)
+            rng = create_key(0)
+            rng = jax.random.split(rng, jax.device_count())
             pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
                 args.pretrained_model_name_or_path, dtype=jnp.float16, safety_checker=None
             )
