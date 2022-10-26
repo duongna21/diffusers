@@ -388,6 +388,7 @@ def main():
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
+            "attention_mask": padded_tokens.attention_mask,
         }
         batch = {k: v.numpy() for k, v in batch.items()}
 
@@ -463,8 +464,7 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            encoder_hidden_states = text_encoder.apply(
-                {"params": text_encoder_params}, batch["input_ids"],  dropout_rng=dropout_rng, train=False)[0]
+            encoder_hidden_states = text_encoder(batch["input_ids"], batch["attention_mask"], dropout_rng=dropout_rng, train=False)[0]
             unet_outputs = unet.apply(
                 {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
             )
