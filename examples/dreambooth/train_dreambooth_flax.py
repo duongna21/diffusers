@@ -391,7 +391,9 @@ def main():
                 prompt_ids = shard(prompt_ids)
                 p_params = jax_utils.replicate(params)
                 images = pipeline(prompt_ids, p_params, rng, jit=True).images
+                print(images.shape)
                 images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
+                print(images.shape)
                 images = pipeline.numpy_to_pil(images)
 
                 for i, image in enumerate(images):
