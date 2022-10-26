@@ -384,9 +384,6 @@ def main():
             sample_dataset = PromptDataset(args.class_prompt, num_new_images)
             sample_dataloader = torch.utils.data.DataLoader(sample_dataset, batch_size=args.sample_batch_size)
 
-            # sample_dataloader = accelerator.prepare(sample_dataloader)
-            # pipeline.to(accelerator.device)
-
             for example in tqdm(
                 sample_dataloader, desc="Generating class images", disable=not jax.process_index() == 0
             ):
@@ -394,11 +391,13 @@ def main():
                 prompt_ids = shard(prompt_ids)
                 p_params = jax_utils.replicate(params)
                 images = pipeline(prompt_ids, p_params, rng, jit=True).images
+                images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
+                images = pipeline.numpy_to_pil(images)
 
                 for i, image in enumerate(images):
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest()
                     image_filename = class_images_dir / f"{example['index'][i] + cur_class_images}-{hash_image}.jpg"
-                    jnp.save(image_filename, image)
+                    image.save(image_filename)
 
             del pipeline
 
