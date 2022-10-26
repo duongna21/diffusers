@@ -441,7 +441,7 @@ def main():
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
     # Define gradient train step fn. todo: params -> state?
-    def train_step(unet_state, text_encoder_params, vae_params, batch, train_rng):
+    def train_step(unet_state, vae_params, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
@@ -542,36 +542,36 @@ def main():
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
 
 
-        # Create the pipeline using using the trained modules and save it.
-        if jax.process_index() == 0:
-            scheduler = FlaxPNDMScheduler(
-                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
-            )
-            safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained(
-                "CompVis/stable-diffusion-safety-checker", from_pt=True
-            )
-            pipeline = FlaxStableDiffusionPipeline(
-                text_encoder=text_encoder,
-                vae=vae,
-                unet=unet,
-                tokenizer=tokenizer,
-                scheduler=scheduler,
-                safety_checker=safety_checker,
-                feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
-            )
+    # Create the pipeline using using the trained modules and save it.
+    if jax.process_index() == 0:
+        scheduler = FlaxPNDMScheduler(
+            beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
+        )
+        safety_checker = FlaxStableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker", from_pt=True
+        )
+        pipeline = FlaxStableDiffusionPipeline(
+            text_encoder=text_encoder,
+            vae=vae,
+            unet=unet,
+            tokenizer=tokenizer,
+            scheduler=scheduler,
+            safety_checker=safety_checker,
+            feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
+        )
 
-            pipeline.save_pretrained(
-                args.output_dir,
-                params={
-                    "text_encoder": get_params_to_save(text_encoder_params),
-                    "vae": get_params_to_save(vae_params),
-                    "unet": ema_unet if args.use_ema else get_params_to_save(unet_state.params),
-                    "safety_checker": safety_checker.params,
-                },
-            )
+        pipeline.save_pretrained(
+            args.output_dir,
+            params={
+                "text_encoder": get_params_to_save(text_encoder_params),
+                "vae": get_params_to_save(vae_params),
+                "unet": ema_unet if args.use_ema else get_params_to_save(unet_state.params),
+                "safety_checker": safety_checker.params,
+            },
+        )
 
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
+        if args.push_to_hub:
+            repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
 
 
 if __name__ == "__main__":
