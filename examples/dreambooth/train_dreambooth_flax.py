@@ -374,7 +374,7 @@ def main():
             rng = create_key(0)
             rng = jax.random.split(rng, jax.device_count())
             pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
-                args.pretrained_model_name_or_path, dtype=jnp.float16, safety_checker=None
+                args.pretrained_model_name_or_path, safety_checker=None
             )
             pipeline.set_progress_bar_config(disable=True)
 
