@@ -580,7 +580,7 @@ def main():
         return new_unet_state, new_text_encoder_state, metrics, new_train_rng
 
     # Create parallel version of the train step
-    p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0, 1))
+    p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
 
     # Replicate the train state on each device
     unet_state = jax_utils.replicate(unet_state)
