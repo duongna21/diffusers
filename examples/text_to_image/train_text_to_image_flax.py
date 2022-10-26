@@ -234,6 +234,7 @@ def main():
     if args.seed is not None:
         set_seed(args.seed)
 
+    # Handle the repository creation
     if jax.process_index() == 0:
         if args.push_to_hub:
             if args.hub_model_id is None:
@@ -344,7 +345,7 @@ def main():
         input_ids = [example["input_ids"] for example in examples]
 
         padded_tokens = tokenizer.pad(
-            {"input_ids": input_ids}, padding="max_length", max_length=77, return_tensors="pt"
+            {"input_ids": input_ids}, padding="max_length", max_length=tokenizer.model_max_length, return_tensors="pt"
         )
         batch = {
             "pixel_values": pixel_values,
