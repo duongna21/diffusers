@@ -387,8 +387,8 @@ def main():
                 prompt_ids = shard(prompt_ids)
                 p_params = jax_utils.replicate(params)
                 rng = jax.random.split(rng)[0]
-                rng = jax.random.split(rng, jax.device_count())
-                images = pipeline(prompt_ids, p_params, rng, jit=True).images
+                sample_rng = jax.random.split(rng, jax.device_count())
+                images = pipeline(prompt_ids, p_params, sample_rng, jit=True).images
                 images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
                 images = pipeline.numpy_to_pil(np.array(images))
 
