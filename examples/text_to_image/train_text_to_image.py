@@ -260,7 +260,7 @@ class EMAModel:
 
         self.optimization_step += 1
         self.decay = self.get_decay(self.optimization_step)
-        # print(f"decay step {self.optimization_step}: {self.decay}")
+        print(f"decay step {self.optimization_step}: {self.decay}")
 
         for s_param, param in zip(self.shadow_params, parameters):
             if param.requires_grad:
