@@ -389,7 +389,7 @@ def main():
             for example in tqdm(
                 sample_dataloader, desc="Generating class images", disable=not jax.process_index() == 0
             ):
-                images = pipeline(example["prompt"], params, rng)[0].images
+                images = pipeline(example["prompt"], params, rng).images
 
                 for i, image in enumerate(images):
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest()
