@@ -244,12 +244,11 @@ dataset_name_mapping = {
 
 
 # Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
-def ema_step(shadow_params, parameters, optimization_step, decay):
-    value = (1 + optimization_step) / (10 + optimization_step)
-    decay = 1 - min(decay, value)
+@jax.jit
+def ema_step(shadow_params, parameters, decay):
     shadow_params = jax.tree_util.tree_map(lambda s_param, param: s_param - decay * (s_param - param),
                                                 shadow_params, parameters)
-    return shadow_params, decay
+    return shadow_params
 
 
 def get_params_to_save(params):
@@ -423,8 +422,9 @@ def main():
         weight_decay=args.adam_weight_decay,)
 
     optimizer = optax.chain(
-        optax.clip_by_global_norm(args.max_grad_norm),
+        optax.clip(1.0),
         adamw,
+        optax.ema(0.5)
     )
 
     params = {"text_encoder": text_encoder.params,
@@ -443,6 +443,7 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
+    # Define gradient train step fn. todo: params -> state?
     def train_step(text_encoder_state, vae_state, unet_state, batch, train_rng):
         params = {"text_encoder": text_encoder_state.params,
                   "vae": vae_state.params,
@@ -535,12 +536,8 @@ def main():
             batch = shard(batch)
             text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_state, unet_state, batch, train_rngs)
             if args.use_ema:
-                text_encoder_state, vae_state, unet_state, train_metric, train_rngs = p_train_step(text_encoder_state,
-                                                                                                   vae_state,
-                                                                                                   unet_state, batch,
-                                                                                                   train_rngs)
-
-
+                value = (1 + global_step) / (10 + global_step)
+                decay = 1 - min(decay, value)
                 ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
             train_metrics.append(train_metric)
 
