@@ -368,7 +368,7 @@ def main():
 
         if cur_class_images < args.num_class_images:
             # TODO: dtype
-            pipeline = FlaxStableDiffusionPipeline.from_pretrained(
+            pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
                 args.pretrained_model_name_or_path, dtype=jnp.float16, safety_checker=None
             )
             pipeline.set_progress_bar_config(disable=True)
@@ -385,7 +385,7 @@ def main():
             for example in tqdm(
                 sample_dataloader, desc="Generating class images", disable=not jax.process_index() == 0
             ):
-                images = pipeline(example["prompt"]).images
+                images = pipeline(example["prompt"], params).images
 
                 for i, image in enumerate(images):
                     hash_image = hashlib.sha1(image.tobytes()).hexdigest()
