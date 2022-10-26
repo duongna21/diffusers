@@ -463,8 +463,8 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            encoder_hidden_states = text_encoder_state.apply_fn(
-                batch["input_ids"], params=text_encoder_params, dropout_rng=dropout_rng,train=False)[0]
+            encoder_hidden_states = text_encoder.apply(
+                {"params": text_encoder_params}, batch["input_ids"],  dropout_rng=dropout_rng, train=False)[0]
             unet_outputs = unet.apply(
                 {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
             )
