@@ -440,8 +440,7 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    # Define gradient train step fn. todo: params -> state?
-    def train_step(unet_state, vae_params, batch, train_rng):
+    def train_step(unet_state, text_encoder_params, vae_params, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
@@ -464,7 +463,7 @@ def main():
                 noise_scheduler.config.num_train_timesteps,
             )
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            encoder_hidden_states = text_encoder(batch["input_ids"], batch["attention_mask"], dropout_rng=dropout_rng, train=False)[0]
+            encoder_hidden_states = text_encoder(batch["input_ids"], batch["attention_mask"], params=text_encoder_params, dropout_rng=dropout_rng, train=False)[0]
             unet_outputs = unet.apply(
                 {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
             )
