@@ -366,13 +366,9 @@ def main():
             class_images_dir.mkdir(parents=True)
         cur_class_images = len(list(class_images_dir.iterdir()))
 
-        if cur_class_images < args.num_class_images:
-            # TODO: dtype
-            def create_key(seed=0):
-                return jax.random.PRNGKey(seed)
+        rng = jax.random.PRNGKey(args.seed)
 
-            rng = create_key(0)
-            rng = jax.random.split(rng, jax.device_count())
+        if cur_class_images < args.num_class_images:
             pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
                 args.pretrained_model_name_or_path, safety_checker=None
             )
@@ -390,6 +386,8 @@ def main():
                 prompt_ids = pipeline.prepare_inputs(example["prompt"])
                 prompt_ids = shard(prompt_ids)
                 p_params = jax_utils.replicate(params)
+                rng = jax.random.split(rng)[0]
+                rng = jax.random.split(rng, jax.device_count())
                 images = pipeline(prompt_ids, p_params, rng, jit=True).images
                 images = images.reshape((images.shape[0] * images.shape[1],) + images.shape[-3:])
                 images = pipeline.numpy_to_pil(np.array(images))
