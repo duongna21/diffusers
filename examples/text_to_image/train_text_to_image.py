@@ -1,4 +1,3 @@
-import flax
 import argparse
 import logging
 import math
@@ -12,6 +11,7 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 
+import flax
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed

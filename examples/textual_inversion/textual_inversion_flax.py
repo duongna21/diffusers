@@ -1,366 +1,4 @@
-import flax
 import argparse
-import logging
-import math
-import os
-import random
-from pathlib import Path
-from typing import Optional
-
-import numpy as np
-import torch
-import torch.utils.checkpoint
-from torch.utils.data import Dataset
-
-import jax
-import jax.numpy as jnp
-import optax
-import PIL
-import transformers
-from diffusers import (
-    FlaxAutoencoderKL,
-    FlaxDDPMScheduler,
-    FlaxPNDMScheduler,
-    FlaxStableDiffusionPipeline,
-    FlaxUNet2DConditionModel,
-)
-from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
-from flax import jax_utils
-from flax.training import train_state
-from flax.training.common_utils import shard
-from huggingface_hub import HfFolder, Repository, whoami
-from PIL import Image
-from torchvision import transforms
-from tqdm.auto import tqdm
-from transformers import CLIPFeatureExtractor, CLIPTokenizer, FlaxCLIPTextModel, set_seed
-
-
-logger = logging.getLogger(__name__)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Simple example of a training script.")
-    parser.add_argument(
-        "--pretrained_model_name_or_path",
-        type=str,
-        default=None,
-        required=True,
-        help="Path to pretrained model or model identifier from huggingface.co/models.",
-    )
-    parser.add_argument(
-        "--tokenizer_name",
-        type=str,
-        default=None,
-        help="Pretrained tokenizer name or path if not the same as model_name",
-    )
-    parser.add_argument(
-        "--train_data_dir", type=str, default=None, required=True, help="A folder containing the training data."
-    )
-    parser.add_argument(
-        "--placeholder_token",
-        type=str,
-        default=None,
-        required=True,
-        help="A token to use as a placeholder for the concept.",
-    )
-    parser.add_argument(
-        "--initializer_token", type=str, default=None, required=True, help="A token to use as initializer word."
-    )
-    parser.add_argument("--learnable_property", type=str, default="object", help="Choose between 'object' and 'style'")
-    parser.add_argument("--repeats", type=int, default=100, help="How many times to repeat the training data.")
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="text-inversion-model",
-        help="The output directory where the model predictions and checkpoints will be written.",
-    )
-    parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training.")
-    parser.add_argument(
-        "--resolution",
-        type=int,
-        default=512,
-        help=(
-            "The resolution for input images, all the images in the train/validation dataset will be resized to this"
-            " resolution"
-        ),
-    )
-    parser.add_argument(
-        "--center_crop", action="store_true", help="Whether to center crop images before resizing to resolution"
-    )
-    parser.add_argument(
-        "--train_batch_size", type=int, default=16, help="Batch size (per device) for the training dataloader."
-    )
-    parser.add_argument("--num_train_epochs", type=int, default=100)
-    parser.add_argument(
-        "--max_train_steps",
-        type=int,
-        default=5000,
-        help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
-    )
-    parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=1e-4,
-        help="Initial learning rate (after the potential warmup period) to use.",
-    )
-    parser.add_argument(
-        "--scale_lr",
-        action="store_true",
-        default=True,
-        help="Scale the learning rate by the number of GPUs, gradient accumulation steps, and batch size.",
-    )
-    parser.add_argument(
-        "--lr_warmup_steps", type=int, default=500, help="Number of steps for the warmup in the lr scheduler."
-    )
-    parser.add_argument(
-        "--lr_scheduler",
-        type=str,
-        default="constant",
-        help=(
-            'The scheduler type to use. Choose between ["linear", "cosine", "cosine_with_restarts", "polynomial",'
-            ' "constant", "constant_with_warmup"]'
-        ),
-    )
-    parser.add_argument("--adam_beta1", type=float, default=0.9, help="The beta1 parameter for the Adam optimizer.")
-    parser.add_argument("--adam_beta2", type=float, default=0.999, help="The beta2 parameter for the Adam optimizer.")
-    parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay to use.")
-    parser.add_argument("--adam_epsilon", type=float, default=1e-08, help="Epsilon value for the Adam optimizer")
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
-    parser.add_argument(
-        "--use_auth_token",
-        action="store_true",
-        help=(
-            "Will use the token generated when running `huggingface-cli login` (necessary to use this script with"
-            " private models)."
-        ),
-    )
-    parser.add_argument("--hub_token", type=str, default=None, help="The token to use to push to the Model Hub.")
-    parser.add_argument(
-        "--hub_model_id",
-        type=str,
-        default=None,
-        help="The name of the repository to keep in sync with the local `output_dir`.",
-    )
-    parser.add_argument(
-        "--logging_dir",
-        type=str,
-        default="logs",
-        help=(
-            "[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"
-            " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."
-        ),
-    )
-    parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
-
-    args = parser.parse_args()
-    env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
-    if env_local_rank != -1 and env_local_rank != args.local_rank:
-        args.local_rank = env_local_rank
-
-    if args.train_data_dir is None:
-        raise ValueError("You must specify a train data directory.")
-
-    return args
-
-
-imagenet_templates_small = [
-    "a photo of a {}",
-    "a rendering of a {}",
-    "a cropped photo of the {}",
-    "the photo of a {}",
-    "a photo of a clean {}",
-    "a photo of a dirty {}",
-    "a dark photo of the {}",
-    "a photo of my {}",
-    "a photo of the cool {}",
-    "a close-up photo of a {}",
-    "a bright photo of the {}",
-    "a cropped photo of a {}",
-    "a photo of the {}",
-    "a good photo of the {}",
-    "a photo of one {}",
-    "a close-up photo of the {}",
-    "a rendition of the {}",
-    "a photo of the clean {}",
-    "a rendition of a {}",
-    "a photo of a nice {}",
-    "a good photo of a {}",
-    "a photo of the nice {}",
-    "a photo of the small {}",
-    "a photo of the weird {}",
-    "a photo of the large {}",
-    "a photo of a cool {}",
-    "a photo of a small {}",
-]
-
-imagenet_style_templates_small = [
-    "a painting in the style of {}",
-    "a rendering in the style of {}",
-    "a cropped painting in the style of {}",
-    "the painting in the style of {}",
-    "a clean painting in the style of {}",
-    "a dirty painting in the style of {}",
-    "a dark painting in the style of {}",
-    "a picture in the style of {}",
-    "a cool painting in the style of {}",
-    "a close-up painting in the style of {}",
-    "a bright painting in the style of {}",
-    "a cropped painting in the style of {}",
-    "a good painting in the style of {}",
-    "a close-up painting in the style of {}",
-    "a rendition in the style of {}",
-    "a nice painting in the style of {}",
-    "a small painting in the style of {}",
-    "a weird painting in the style of {}",
-    "a large painting in the style of {}",
-]
-
-
-class TextualInversionDataset(Dataset):
-    def __init__(
-        self,
-        data_root,
-        tokenizer,
-        learnable_property="object",  # [object, style]
-        size=512,
-        repeats=100,
-        interpolation="bicubic",
-        flip_p=0.5,
-        set="train",
-        placeholder_token="*",
-        center_crop=False,
-    ):
-        self.data_root = data_root
-        self.tokenizer = tokenizer
-        self.learnable_property = learnable_property
-        self.size = size
-        self.placeholder_token = placeholder_token
-        self.center_crop = center_crop
-        self.flip_p = flip_p
-
-        self.image_paths = [os.path.join(self.data_root, file_path) for file_path in os.listdir(self.data_root)]
-
-        self.num_images = len(self.image_paths)
-        self._length = self.num_images
-
-        if set == "train":
-            self._length = self.num_images * repeats
-
-        self.interpolation = {
-            "linear": PIL.Image.LINEAR,
-            "bilinear": PIL.Image.BILINEAR,
-            "bicubic": PIL.Image.BICUBIC,
-            "lanczos": PIL.Image.LANCZOS,
-        }[interpolation]
-
-        self.templates = imagenet_style_templates_small if learnable_property == "style" else imagenet_templates_small
-        self.flip_transform = transforms.RandomHorizontalFlip(p=self.flip_p)
-
-    def __len__(self):
-        return self._length
-
-    def __getitem__(self, i):
-        example = {}
-        image = Image.open(self.image_paths[i % self.num_images])
-
-        if not image.mode == "RGB":
-            image = image.convert("RGB")
-
-        placeholder_string = self.placeholder_token
-        text = random.choice(self.templates).format(placeholder_string)
-
-        example["input_ids"] = self.tokenizer(
-            text,
-            padding="max_length",
-            truncation=True,
-            max_length=self.tokenizer.model_max_length,
-            return_tensors="pt",
-        ).input_ids[0]
-
-        # default to score-sde preprocessing
-        img = np.array(image).astype(np.uint8)
-
-        if self.center_crop:
-            crop = min(img.shape[0], img.shape[1])
-            h, w, = (
-                img.shape[0],
-                img.shape[1],
-            )
-            img = img[(h - crop) // 2 : (h + crop) // 2, (w - crop) // 2 : (w + crop) // 2]
-
-        image = Image.fromarray(img)
-        image = image.resize((self.size, self.size), resample=self.interpolation)
-
-        image = self.flip_transform(image)
-        image = np.array(image).astype(np.uint8)
-        image = (image / 127.5 - 1.0).astype(np.float32)
-
-        example["pixel_values"] = torch.from_numpy(image).permute(2, 0, 1)
-        return example
-
-
-def get_full_repo_name(model_id: str, organization: Optional[str] = None, token: Optional[str] = None):
-    if token is None:
-        token = HfFolder.get_token()
-    if organization is None:
-        username = whoami(token)["name"]
-        return f"{username}/{model_id}"
-    else:
-        return f"{organization}/{model_id}"
-
-
-def resize_token_embeddings(model, new_num_tokens, initializer_token_id, placeholder_token_id, rng):
-    if model.config.vocab_size == new_num_tokens or new_num_tokens is None:
-        return
-    model.config.vocab_size = new_num_tokens
-
-    params = model.params
-    old_embeddings = params["text_model"]["embeddings"]["token_embedding"]["embedding"]
-    old_num_tokens, emb_dim = old_embeddings.shape
-
-    initializer = jax.nn.initializers.normal()
-
-    new_embeddings = initializer(rng, (new_num_tokens, emb_dim))
-    new_embeddings = new_embeddings.at[:old_num_tokens].set(old_embeddings)
-    new_embeddings = new_embeddings.at[placeholder_token_id].set(new_embeddings[initializer_token_id])
-    params["text_model"]["embeddings"]["token_embedding"]["embedding"] = new_embeddings
-
-    model.params = params
-    return model
-
-
-def get_params_to_save(params):
-    return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
-
-
-def main():
-    args = parse_args()
-
-    if args.seed is not None:
-        set_seed(args.seed)
-
-    if jax.process_index() == 0:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(Path(args.output_dir).name, token=args.hub_token)
-            else:
-                repo_name = args.hub_model_id
-            repo = Repository(args.output_dir, clone_from=repo_name)
-
-            with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
-                if "step_*" not in gitignore:
-                    gitignore.write("step_*\n")
-                if "epoch_*" not in gitignore:
-                    gitignore.write("epoch_*\n")
-        elif args.output_dir is not None:
-            os.makedirs(args.output_dir, exist_ok=True)
-
-    # Make one log on every process with the configuration for debugging.
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,
-    )import argparse
 import logging
 import math
 import os
@@ -1104,12 +742,11 @@ if __name__ == "__main__":
         {"token_embedding": optimizer, "zero": zero_grads()},
         create_mask(text_encoder.params, lambda s: s == "token_embedding"),
     )
-    params = {"text_encoder": text_encoder.params,
-              "vae": state_vae,
-              "unet": state_unet}
+    params = {"text_encoder": text_encoder.params, "vae": state_vae, "unet": state_unet}
     # state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=text_encoder.params, tx=optimizer)
-    text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'],
-                                                       tx=tx)
+    text_encoder_state = train_state.TrainState.create(
+        apply_fn=text_encoder.__call__, params=params["text_encoder"], tx=tx
+    )
     # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=optimizer)
     # unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=params['unet'], tx=optimizer)
     noise_scheduler = FlaxDDPMScheduler(
@@ -1148,7 +785,8 @@ if __name__ == "__main__":
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
             encoder_hidden_states = text_encoder_state.apply_fn(
-                batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True)[0]
+                batch["input_ids"], params=params, dropout_rng=dropout_rng, train=True
+            )[0]
             # unet_outputs = unet_state.apply_fn(
             #     noisy_latents, timesteps, encoder_hidden_states, params=params['unet'], dropout_rng=dropout_rng, train=True
             # )
@@ -1169,7 +807,9 @@ if __name__ == "__main__":
         # Keep the token embeddings fixed except the newly added embeddings for the concept,
         # as we only want to optimize the concept embeddings
         token_embeds = original_token_embeds.at[placeholder_token_id].set(
-            new_text_encoder_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"][placeholder_token_id]
+            new_text_encoder_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"][
+                placeholder_token_id
+            ]
         )
         new_text_encoder_state.params["text_model"]["embeddings"]["token_embedding"]["embedding"] = token_embeds
 
@@ -1213,7 +853,9 @@ if __name__ == "__main__":
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            text_encoder_state, train_metric, train_rngs = p_train_step(text_encoder_state, vae_params, unet_params, batch, train_rngs)
+            text_encoder_state, train_metric, train_rngs = p_train_step(
+                text_encoder_state, vae_params, unet_params, batch, train_rngs
+            )
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
@@ -1252,9 +894,9 @@ if __name__ == "__main__":
             )
 
             # Also save the newly trained embeddings
-            learned_embeds = get_params_to_save(text_encoder_state.params)["text_model"]["embeddings"]["token_embedding"][
-                "embedding"
-            ][placeholder_token_id]
+            learned_embeds = get_params_to_save(text_encoder_state.params)["text_model"]["embeddings"][
+                "token_embedding"
+            ]["embedding"][placeholder_token_id]
             # learned_embeds_dict = {args.placeholder_token: learned_embeds}
             jnp.save(os.path.join(args.output_dir, "learned_embeds.npy"), learned_embeds)
 

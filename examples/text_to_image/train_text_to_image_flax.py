@@ -1,31 +1,20 @@
-import flax
 import argparse
 import logging
 import math
 import os
 import random
-from flax import jax_utils
-import transformers
-import jax
-
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
+
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.utils.checkpoint
-from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
 
-import optax
-from datasets import load_dataset
-from flax.training import train_state
+import jax
 import jax.numpy as jnp
-from flax.training.common_utils import shard
-from huggingface_hub import HfFolder, Repository, whoami
-from torchvision import transforms
-from tqdm.auto import tqdm
-from transformers import CLIPFeatureExtractor, CLIPTokenizer, FlaxCLIPTextModel, set_seed
-
+import optax
+import transformers
+from datasets import load_dataset
 from diffusers import (
     FlaxAutoencoderKL,
     FlaxDDPMScheduler,
@@ -33,6 +22,15 @@ from diffusers import (
     FlaxStableDiffusionPipeline,
     FlaxUNet2DConditionModel,
 )
+from diffusers.pipelines.stable_diffusion import FlaxStableDiffusionSafetyChecker
+from flax import jax_utils
+from flax.training import train_state
+from flax.training.common_utils import shard
+from huggingface_hub import HfFolder, Repository, whoami
+from torchvision import transforms
+from tqdm.auto import tqdm
+from transformers import CLIPFeatureExtractor, CLIPTokenizer, FlaxCLIPTextModel, set_seed
+
 
 logger = logging.getLogger(__name__)
 
@@ -133,17 +131,6 @@ def parse_args():
         help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=1,
-        help="Number of updates steps to accumulate before performing a backward/update pass.",
-    )
-    parser.add_argument(
-        "--gradient_checkpointing",
-        action="store_true",
-        help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.",
-    )
-    parser.add_argument(
         "--learning_rate",
         type=float,
         default=1e-4,
@@ -164,13 +151,6 @@ def parse_args():
             ' "constant", "constant_with_warmup"]'
         ),
     )
-    parser.add_argument(
-        "--lr_warmup_steps", type=int, default=500, help="Number of steps for the warmup in the lr scheduler."
-    )
-    parser.add_argument(
-        "--use_8bit_adam", action="store_true", help="Whether or not to use 8-bit Adam from bitsandbytes."
-    )
-    parser.add_argument("--use_ema", action="store_true", help="Whether to use EMA model.")
     parser.add_argument("--adam_beta1", type=float, default=0.9, help="The beta1 parameter for the Adam optimizer.")
     parser.add_argument("--adam_beta2", type=float, default=0.999, help="The beta2 parameter for the Adam optimizer.")
     parser.add_argument("--adam_weight_decay", type=float, default=1e-2, help="Weight decay to use.")
@@ -191,17 +171,6 @@ def parse_args():
         help=(
             "[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"
             " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."
-        ),
-    )
-    parser.add_argument(
-        "--mixed_precision",
-        type=str,
-        default=None,
-        choices=["fp16", "bf16"],
-        help=(
-            "Whether to use mixed precision. Choose"
-            "between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >= 1.10."
-            "and an Nvidia Ampere GPU."
         ),
     )
     parser.add_argument(
@@ -243,21 +212,12 @@ dataset_name_mapping = {
 }
 
 
-# Adapted from torch-ema https://github.com/fadel/pytorch_ema/blob/master/torch_ema/ema.py#L14
-@jax.jit
-def ema_step(shadow_params, parameters, decay):
-    shadow_params = jax.tree_util.tree_map(lambda s_param, param: (1-decay) * s_param + decay * param,
-                                                shadow_params, parameters)
-    return shadow_params
-
-
 def get_params_to_save(params):
     return jax.device_get(jax.tree_util.tree_map(lambda x: x[0], params))
 
 
 def main():
     args = parse_args()
-    logging_dir = os.path.join(args.output_dir, args.logging_dir)
 
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -357,8 +317,7 @@ def main():
 
     train_transforms = transforms.Compose(
         [
-            transforms.Resize((args.resolution, args.resolution),
-                              interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize((args.resolution, args.resolution), interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.CenterCrop(args.resolution) if args.center_crop else transforms.RandomCrop(args.resolution),
             transforms.RandomHorizontalFlip() if args.random_flip else transforms.Lambda(lambda x: x),
             transforms.ToTensor(),
@@ -384,7 +343,9 @@ def main():
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
         input_ids = [example["input_ids"] for example in examples]
 
-        padded_tokens = tokenizer.pad({"input_ids": input_ids}, padding='max_length', max_length=77, return_tensors="pt")
+        padded_tokens = tokenizer.pad(
+            {"input_ids": input_ids}, padding="max_length", max_length=77, return_tensors="pt"
+        )
         batch = {
             "pixel_values": pixel_values,
             "input_ids": padded_tokens.input_ids,
@@ -404,11 +365,7 @@ def main():
     text_encoder = FlaxCLIPTextModel.from_pretrained("duongna/text_encoder_flax")
     vae, vae_params = FlaxAutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
     unet, unet_params = FlaxUNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
-    noise_scheduler = FlaxDDPMScheduler(
-        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
-    )
 
-    # TODO: Gradient checkpointing
 
     # Optimization
     if args.scale_lr:
@@ -416,35 +373,34 @@ def main():
 
     constant_scheduler = optax.constant_schedule(args.learning_rate)
 
-    adamw = optax.adamw(learning_rate=constant_scheduler,
+    adamw = optax.adamw(
+        learning_rate=constant_scheduler,
         b1=args.adam_beta1,
         b2=args.adam_beta2,
         eps=args.adam_epsilon,
-        weight_decay=args.adam_weight_decay,)
+        weight_decay=args.adam_weight_decay,
+    )
 
     optimizer = optax.chain(
         optax.clip_by_global_norm(args.max_grad_norm),
         adamw,
-        # optax.ema(0.5)
     )
 
-    # text_encoder_state = train_state.TrainState.create(apply_fn=text_encoder.__call__, params=params['text_encoder'], tx=adamw)
-    # vae_state = train_state.TrainState.create(apply_fn=vae.encode, params=params['vae'], tx=adamw)
-    unet_state = train_state.TrainState.create(apply_fn=unet.__call__, params=unet_params, tx=optimizer)
+    state = train_state.TrainState.create(apply_fn=unet.__call__, params=unet_params, tx=optimizer)
 
-    # Create EMA for the unet.
-    if args.use_ema:
-        ema_unet = unet_params
+    noise_scheduler = FlaxDDPMScheduler(
+        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+    )
 
     # Initialize our training
     rng = jax.random.PRNGKey(args.seed)
     train_rngs = jax.random.split(rng, jax.local_device_count())
 
-    def train_step(unet_state, text_encoder_params, vae_params, batch, train_rng):
+    def train_step(state, text_encoder_params, vae_params, batch, train_rng):
         dropout_rng, sample_rng, new_train_rng = jax.random.split(train_rng, 3)
 
         def compute_loss(params):
-            # vae_outputs = vae_state.apply_fn(batch["pixel_values"], deterministic=False)
+            # Convert images to latent space
             vae_outputs = vae.apply(
                 {"params": vae_params}, batch["pixel_values"], deterministic=True, method=vae.encode
             )
@@ -453,8 +409,11 @@ def main():
             latents = jnp.transpose(latents, (0, 3, 1, 2))
             latents = latents * 0.18215
 
+            # Sample noise that we'll add to the latents
             noise_rng, timestep_rng = jax.random.split(sample_rng)
             noise = jax.random.normal(noise_rng, latents.shape)
+
+            # Sample a random timestep for each image
             bsz = latents.shape[0]
             timesteps = jax.random.randint(
                 timestep_rng,
@@ -462,11 +421,22 @@ def main():
                 0,
                 noise_scheduler.config.num_train_timesteps,
             )
+
+            # Add noise to the latents according to the noise magnitude at each timestep
+            # (this is the forward diffusion process)
             noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
-            encoder_hidden_states = text_encoder(batch["input_ids"], batch["attention_mask"], params=text_encoder_params, dropout_rng=dropout_rng, train=False)[0]
-            unet_outputs = unet.apply(
-                {"params": params}, noisy_latents, timesteps, encoder_hidden_states, train=True
-            )
+
+            # Get the text embedding for conditioning
+            encoder_hidden_states = text_encoder(
+                batch["input_ids"],
+                batch["attention_mask"],
+                params=text_encoder_params,
+                dropout_rng=dropout_rng,
+                train=False,
+            )[0]
+
+            # Predict the noise residual and compute loss
+            unet_outputs = state.apply_fn(noisy_latents, timesteps, encoder_hidden_states, params=params, train=True)
             noise_pred = unet_outputs.sample
             loss = (noise - noise_pred) ** 2
             loss = loss.mean()
@@ -474,23 +444,22 @@ def main():
             return loss
 
         grad_fn = jax.value_and_grad(compute_loss)
-        loss, grad = grad_fn(unet_state.params)
+        loss, grad = grad_fn(state.params)
         grad = jax.lax.pmean(grad, "batch")
 
-        new_unet_state = unet_state.apply_gradients(grads=grad)
+        new_state = state.apply_gradients(grads=grad)
 
         metrics = {"loss": loss}
         metrics = jax.lax.pmean(metrics, axis_name="batch")
 
-        return new_unet_state, metrics, new_train_rng
+        return new_state, metrics, new_train_rng
 
     # Create parallel version of the train step
     p_train_step = jax.pmap(train_step, "batch", donate_argnums=(0,))
+
     # Replicate the train state on each device
-    # text_encoder_state = jax_utils.replicate(text_encoder_state)
-    # vae_state = jax_utils.replicate(vae_state)
-    unet_state = jax_utils.replicate(unet_state)
-    text_encoder_params= jax_utils.replicate(text_encoder.params)
+    state = jax_utils.replicate(state)
+    text_encoder_params = jax_utils.replicate(text_encoder.params)
     vae_params = jax_utils.replicate(vae_params)
 
     # Train!
@@ -510,7 +479,6 @@ def main():
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
     global_step = 0
-    decay = 0.999
 
     epochs = tqdm(range(args.num_train_epochs), desc="Epoch ... ", position=0)
     for epoch in epochs:
@@ -523,17 +491,11 @@ def main():
         # train
         for batch in train_dataloader:
             batch = shard(batch)
-            unet_state, train_metric, train_rngs = p_train_step(unet_state, text_encoder_params, vae_params, batch, train_rngs)
-            if args.use_ema:
-                value = (1 + global_step) / (10 + global_step)
-                print(f"decay: {decay}, value: {value}")
-                decay = 1 - min(decay, value)
-                print(f"decay step {global_step}: {decay}")
-
-                ema_unet = ema_step(ema_unet, get_params_to_save(unet_state.params), decay)
+            state, train_metric, train_rngs = p_train_step(state, text_encoder_params, vae_params, batch, train_rngs)
             train_metrics.append(train_metric)
 
             train_step_progress_bar.update(1)
+
             global_step += 1
             if global_step >= args.max_train_steps:
                 break
@@ -542,7 +504,6 @@ def main():
 
         train_step_progress_bar.close()
         epochs.write(f"Epoch... ({epoch + 1}/{args.num_train_epochs} | Loss: {train_metric['loss']})")
-
 
     # Create the pipeline using using the trained modules and save it.
     if jax.process_index() == 0:
@@ -567,7 +528,7 @@ def main():
             params={
                 "text_encoder": get_params_to_save(text_encoder_params),
                 "vae": get_params_to_save(vae_params),
-                "unet": ema_unet if args.use_ema else get_params_to_save(unet_state.params),
+                "unet": get_params_to_save(state.params),
                 "safety_checker": safety_checker.params,
             },
         )
