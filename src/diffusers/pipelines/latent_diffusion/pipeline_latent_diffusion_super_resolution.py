@@ -19,7 +19,7 @@ def preprocess(image):
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
 
-class LDMTextToImagePipeline(DiffusionPipeline):
+class LDMSuperResolutionPipeline(DiffusionPipeline):
     r"""
     This model inherits from [`DiffusionPipeline`]. Check the superclass documentation for the generic methods the
     library implements for all the pipelines (such as downloading or saving, running on a particular device, etc.)
