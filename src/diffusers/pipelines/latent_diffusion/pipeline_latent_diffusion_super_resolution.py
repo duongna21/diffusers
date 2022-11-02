@@ -101,7 +101,6 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         )
         latents = latents.to(self.device)
         init_image = init_image.to(device=self.device, dtype=latents.dtype)
-        print(latents.device, init_image.device)
 
 
         # set timesteps
