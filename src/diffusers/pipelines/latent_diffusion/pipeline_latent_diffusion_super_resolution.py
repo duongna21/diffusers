@@ -93,7 +93,8 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
 
         if isinstance(init_image, PIL.Image.Image):
             init_image = preprocess(init_image)
-        height, weight = init_image.shape[-2:]
+
+        height, width = init_image.shape[-2:]
         latents = torch.randn(
             (batch_size, self.unet.in_channels // 2, height, width),
             generator=generator,
