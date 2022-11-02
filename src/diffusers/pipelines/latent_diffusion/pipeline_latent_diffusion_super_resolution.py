@@ -101,7 +101,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             generator=generator,
         )
         latents = latents.to(self.device)
-        init_image = init_image.to(device=self.device, dtype=latents.dtype)
+        init_image.to(device=self.device, dtype=latents.dtype)
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
