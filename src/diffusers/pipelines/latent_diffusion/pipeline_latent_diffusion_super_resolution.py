@@ -96,15 +96,12 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         else:
             raise ValueError(f"`init_image` has to be of type `PIL.Image.Image` or `torch.FloatTensor` but is {type(init_image)}")
 
-        init_image = init_image.to(device=self.device)
-
-
-
         latents = torch.randn(
             (batch_size, self.unet.in_channels // 2, height, width),
             generator=generator,
         )
         latents = latents.to(self.device)
+        init_image = init_image.to(device=self.device, dtype=latents.dtype)
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
