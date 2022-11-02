@@ -12,9 +12,9 @@ import numpy as np
 
 def preprocess(image):
     w, h = image.size
-    w, h = 64,64  # resize to integer multiple of 32
+    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
     image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
+    # image = np.array(image).astype(np.float32) / 255.0
     image = image[None].transpose(0, 3, 1, 2)
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
@@ -128,7 +128,10 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         # decode the image latents with the VAE
         image = self.vqvae.decode(latents).sample
 
-        image = (image / 2 + 0.5).clamp(0, 1)
+        # image = (image / 2 + 0.5).clamp(0, 1)
+        image = torch.clamp(image, -1., 1.)
+        image = (image + 1.) / 2. * 255
+
         image = image.cpu().permute(0, 2, 3, 1).numpy()
         if output_type == "pil":
             image = self.numpy_to_pil(image)
