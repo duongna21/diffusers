@@ -3,4 +3,5 @@ from ...utils import is_transformers_available
 
 
 if is_transformers_available():
-    from .pipeline_latent_diffusion import LDMBertModel, LDMTextToImagePipeline, LDMSuperResolutionPipeline
+    from .pipeline_latent_diffusion import LDMBertModel, LDMTextToImagePipeline
+    from .pipeline_latent_diffusion_super_resolution import LDMSuperResolutionPipeline
