@@ -86,17 +86,18 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         """
 
         if isinstance(init_image, PIL.Image.Image):
+            init_image = preprocess(init_image)
+
+        if isinstance(init_image, PIL.Image.Image):
             batch_size = 1
+            height, weight = init_image.size
         elif isinstance(init_image, torch.FloatTensor):
-            batch_size = init_image.shape[0]
+            batch_size, height, weight = init_image.shape
         else:
             raise ValueError(f"`init_image` has to be of type `PIL.Image.Image` or `torch.FloatTensor` but is {type(init_image)}")
 
-        if isinstance(init_image, PIL.Image.Image):
-            init_image = preprocess(init_image)
-
         init_image = init_image.to(device=self.device)
-        height, weight = init_image.shape[1:]
+
 
 
         latents = torch.randn(
