@@ -2,16 +2,8 @@ import inspect
 from typing import List, Optional, Tuple, Union
 
 import torch
-import torch.nn as nn
 import torch.utils.checkpoint
 import PIL
-
-from transformers.activations import ACT2FN
-from transformers.configuration_utils import PretrainedConfig
-from transformers.modeling_outputs import BaseModelOutput
-from transformers.modeling_utils import PreTrainedModel
-from transformers.tokenization_utils import PreTrainedTokenizer
-from transformers.utils import logging
 
 from ...models import AutoencoderKL, UNet2DConditionModel, UNet2DModel, VQModel
 from ...pipeline_utils import DiffusionPipeline, ImagePipelineOutput
