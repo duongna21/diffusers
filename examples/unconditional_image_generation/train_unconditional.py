@@ -263,9 +263,9 @@ def main(args):
 
     augmentations = Compose(
         [
-            Resize(args.resolution, interpolation=InterpolationMode.BILINEAR),
-            CenterCrop(args.resolution),
-            RandomHorizontalFlip(),
+            Resize((args.resolution, args.resolution * 7), interpolation=InterpolationMode.BILINEAR),
+            # CenterCrop(args.resolution),
+            # RandomHorizontalFlip(),
             ToTensor(),
             Normalize([0.5], [0.5]),
         ]
