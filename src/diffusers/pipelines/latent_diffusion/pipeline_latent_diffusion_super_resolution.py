@@ -121,6 +121,9 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # concat latents and low resolution image
             latents_input = torch.cat([latents, init_image], dim=1)
             # predict the noise residual
+            print(f'\nx: {latents}')
+            print(f'\nt: {t}')
+            print(f'\nc: {init_image}')
             noise_pred = self.unet(latents_input, t).sample
             print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
