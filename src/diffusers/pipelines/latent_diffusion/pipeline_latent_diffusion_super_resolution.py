@@ -154,7 +154,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)
-        print(f'image:{image}')
+        print(f'image:{np.array(image)}')
 
         if not return_dict:
             return (image,)
