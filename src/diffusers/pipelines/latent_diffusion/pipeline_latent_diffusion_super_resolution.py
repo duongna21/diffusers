@@ -94,7 +94,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
 
         if isinstance(init_image, PIL.Image.Image):
             init_image = preprocess(init_image)
-        print(f"LR_image: {init_image}")
+        # print(f"LR_image: {init_image}")
 
         height, width = init_image.shape[-2:]
         generator = torch.Generator(device='cuda')
@@ -131,7 +131,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
-            # print(f'\nprev_sample: {latents}')
+            print(f'\nprev_sample: {latents}')
             # break
 
         torch.save(latents, 'latents.pt')
