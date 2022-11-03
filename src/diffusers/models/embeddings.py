@@ -45,21 +45,26 @@ def get_timestep_embedding(
     exponent = exponent / (half_dim - downscale_freq_shift)
 
     emb = torch.exp(exponent)
+    print(f'\nexponent: {emb}')
     emb = timesteps[:, None].float() * emb[None, :]
 
     # scale embeddings
     emb = scale * emb
+    print(f'\nafter scale: {emb}')
 
     # concat sine and cosine embeddings
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
+    print(f'\nafter concat: {emb}')
 
     # flip sine and cosine embeddings
     if flip_sin_to_cos:
         emb = torch.cat([emb[:, half_dim:], emb[:, :half_dim]], dim=-1)
+    print(f'\nafter flip: {emb}')
 
     # zero pad
     if embedding_dim % 2 == 1:
         emb = torch.nn.functional.pad(emb, (0, 1, 0, 0))
+    print(f'\nfinal: {emb}')
     return emb
 
 
