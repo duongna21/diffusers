@@ -105,7 +105,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         )
         latents = latents.to(self.device)
         init_image = init_image.to(device=self.device, dtype=latents.dtype)
-        print(f'\nencode: {self.vqvae.encode(init_image).latents}')
+        # print(f'\nencode: {self.vqvae.encode(init_image).latents}')
 
 
         # set timesteps
@@ -125,16 +125,16 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # concat latents and low resolution image
             latents_input = torch.cat([latents, init_image], dim=1)
             # predict the noise residual
-            print(f'\nlatents: {latents}')
-            print(f'\nt: {t}')
-            print(f'\nc: {init_image}')
+            # print(f'\nlatents: {latents}')
+            # print(f'\nt: {t}')
+            # print(f'\nc: {init_image}')
             noise_pred = self.unet(latents_input, t).sample
-            print(f'\ne_t: {noise_pred}')
+            # print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
-            print(f'\nprev_sample: {latents}')
-            break
-
+            # print(f'\nprev_sample: {latents}')
+            # break
+        print(f'\nz0: {latents}')
         torch.save(latents, 'latents.pt')
         torch.save(noise_pred, 'noise_pred.pt')
         # scale and decode the image latents with vae
