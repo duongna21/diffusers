@@ -117,7 +117,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
         extra_kwargs = {}
         if accepts_eta:
-            extra_kwargs["eta"] = eta
+            extra_kwargs["eta"] = 1
 
         for t in self.progress_bar(self.scheduler.timesteps):
             # concat latents and low resolution image
