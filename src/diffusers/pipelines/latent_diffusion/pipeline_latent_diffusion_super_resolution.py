@@ -91,8 +91,8 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         else:
             raise ValueError(f"`init_image` has to be of type `PIL.Image.Image` or `torch.FloatTensor` but is {type(init_image)}")
 
-        if isinstance(init_image, PIL.Image.Image):
-            init_image = preprocess(init_image)
+        # if isinstance(init_image, PIL.Image.Image):
+        #     init_image = preprocess(init_image)
 
         height, width = init_image.shape[-2:]
         generator = torch.Generator(device='cuda')
