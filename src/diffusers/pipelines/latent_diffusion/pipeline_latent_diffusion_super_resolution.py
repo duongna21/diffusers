@@ -119,7 +119,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         extra_kwargs = {}
         if accepts_eta:
             extra_kwargs["eta"] = eta
-        i = 0
+        # i = 0
         for t in self.progress_bar(self.scheduler.timesteps):
             # print(f'\nt: {t}')
             # concat latents and low resolution image
@@ -133,9 +133,9 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
             # print(f'\nprev_sample: {latents}')
-            if i==1:
-                break
-            i+=1
+            # if i==1:
+            #     break
+            # i+=1
         print(f'\nz0: {latents}')
         torch.save(latents, 'latents.pt')
         torch.save(noise_pred, 'noise_pred.pt')
