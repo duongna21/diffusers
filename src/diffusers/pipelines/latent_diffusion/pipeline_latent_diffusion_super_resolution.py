@@ -105,6 +105,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         )
         latents = latents.to(self.device)
         init_image = init_image.to(device=self.device, dtype=latents.dtype)
+        print(f'\nencode: {self.vae.encode(init_image).latent_dist}')
 
 
         # set timesteps
