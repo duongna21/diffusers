@@ -137,7 +137,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         image = self.vqvae.decode(latents).sample
 
         # image = (image / 2 + 0.5).clamp(0, 1)
-        image = torch.clamp(image, -1., 1.)
+        image = torch.clamp(image, -1., 1.).detach().cpu()
         image = (image + 1.) / 2. * 255
         image = image.numpy().astype(np.uint8)
         image = np.transpose(image, (0, 2, 3, 1))
