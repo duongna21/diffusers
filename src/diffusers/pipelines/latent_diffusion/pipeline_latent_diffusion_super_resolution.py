@@ -14,11 +14,10 @@ def preprocess(image):
     w, h = image.size
     w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
     image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = 2.0 * image - 1.0
     image = np.array(image).astype(np.float32) / 255.0
     image = image[None].transpose(0, 3, 1, 2)
     image = torch.from_numpy(image)
-    return image
+    return 2.0 * image - 1.0
 
 class LDMSuperResolutionPipeline(DiffusionPipeline):
     r"""
@@ -92,6 +91,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         else:
             raise ValueError(f"`init_image` has to be of type `PIL.Image.Image` or `torch.FloatTensor` but is {type(init_image)}")
 
+        print(f"LR_image: {init_image}")
         if isinstance(init_image, PIL.Image.Image):
             init_image = preprocess(init_image)
 
