@@ -135,6 +135,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # break
 
         torch.save(latents, 'latents.pt')
+        torch.save(noise_pred, 'noise_pred.pt')
         # scale and decode the image latents with vae
         latents = 1 / 0.18215 * latents
         # decode the image latents with the VAE
