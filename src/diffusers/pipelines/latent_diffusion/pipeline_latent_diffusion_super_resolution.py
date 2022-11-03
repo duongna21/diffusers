@@ -95,6 +95,8 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             init_image = preprocess(init_image)
 
         height, width = init_image.shape[-2:]
+        generator = torch.Generator(device='cuda')
+        generator.manual_seed(0)
         latents = torch.randn(
             (batch_size, self.unet.in_channels // 2, height, width),
             generator=generator,
@@ -123,6 +125,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
+            break
 
         torch.save(latents, 'latents.pt')
         # scale and decode the image latents with vae
