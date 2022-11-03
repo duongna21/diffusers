@@ -4,7 +4,6 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.utils.checkpoint
 import PIL
-import torchvision
 
 from ...models import AutoencoderKL, UNet2DConditionModel, UNet2DModel, VQModel
 from ...pipeline_utils import DiffusionPipeline, ImagePipelineOutput
@@ -15,8 +14,9 @@ def preprocess(image):
     w, h = image.size
     w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
     image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = torch.unsqueeze(torchvision.transforms.ToTensor()(image), 0)
-    image = image.transpose(0, 3, 1, 2)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image)
     return 2.0 * image - 1.0
 
 class LDMSuperResolutionPipeline(DiffusionPipeline):
@@ -91,9 +91,10 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         else:
             raise ValueError(f"`init_image` has to be of type `PIL.Image.Image` or `torch.FloatTensor` but is {type(init_image)}")
 
-        print(f"LR_image: {init_image}")
+
         if isinstance(init_image, PIL.Image.Image):
             init_image = preprocess(init_image)
+        print(f"LR_image: {init_image}")
 
         height, width = init_image.shape[-2:]
         generator = torch.Generator(device='cuda')
