@@ -95,10 +95,10 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             init_image = preprocess(init_image)
 
         height, width = init_image.shape[-2:]
-        generator = torch.Generator(device='cpu')
+        generator = torch.Generator(device='cuda')
         generator.manual_seed(0)
         latents = torch.randn(
-            (batch_size, self.unet.in_channels // 2, height, width),
+            (batch_size, self.unet.in_channels // 2, height, width), device='cuda',
             generator=generator,
         )
         latents = latents.to(self.device)
