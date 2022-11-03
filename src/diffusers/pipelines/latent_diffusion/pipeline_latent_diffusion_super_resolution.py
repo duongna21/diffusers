@@ -133,7 +133,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
             # print(f'\nprev_sample: {latents}')
-            # break
+            break
         print(f'\nz0: {latents}')
         torch.save(latents, 'latents.pt')
         torch.save(noise_pred, 'noise_pred.pt')
