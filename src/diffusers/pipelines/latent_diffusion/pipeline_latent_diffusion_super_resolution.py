@@ -48,7 +48,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         init_image: Union[torch.FloatTensor, PIL.Image.Image],
         batch_size: Optional[int] = 1,
         num_inference_steps: Optional[int] = 100,
-        eta: Optional[float] = 0.0,
+        eta: Optional[float] = 1.0,
         generator: Optional[torch.Generator] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
