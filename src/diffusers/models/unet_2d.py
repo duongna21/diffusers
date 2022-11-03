@@ -209,10 +209,13 @@ class UNet2DModel(ModelMixin, ConfigMixin):
         timesteps = timesteps * torch.ones(sample.shape[0], dtype=timesteps.dtype, device=timesteps.device)
 
         t_emb = self.time_proj(timesteps)
+        print(f't_emb: {t_emb[:5]}')
         emb = self.time_embedding(t_emb)
+        print(f'emb: {emb[:5]}')
 
         # 2. pre-process
         skip_sample = sample
+        print(f'input: {sample[0][0][0][:5]}')
         sample = self.conv_in(sample)
 
         # 3. down
@@ -226,9 +229,10 @@ class UNet2DModel(ModelMixin, ConfigMixin):
                 sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
 
             down_block_res_samples += res_samples
-
+        print(f'after_downblock: {sample[0][0][0][:5]}')
         # 4. mid
         sample = self.mid_block(sample, emb)
+        print(f'after_midblock: {sample[0][0][0][:5]}')
 
         # 5. up
         skip_sample = None
@@ -240,18 +244,20 @@ class UNet2DModel(ModelMixin, ConfigMixin):
                 sample, skip_sample = upsample_block(sample, res_samples, emb, skip_sample)
             else:
                 sample = upsample_block(sample, res_samples, emb)
-
+        print(f'after_upblock: {sample[0][0][0][:5]}')
         # 6. post-process
         # make sure hidden states is in float32
         # when running in half-precision
         sample = self.conv_norm_out(sample.float()).type(sample.dtype)
         sample = self.conv_act(sample)
         sample = self.conv_out(sample)
+        print(f'after_convout: {sample[0][0][0][:5]}')
 
         if skip_sample is not None:
             sample += skip_sample
 
         if self.config.time_embedding_type == "fourier":
+            print('is fourier')
             timesteps = timesteps.reshape((sample.shape[0], *([1] * len(sample.shape[1:]))))
             sample = sample / timesteps
 
