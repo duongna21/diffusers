@@ -145,11 +145,10 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         image = self.vqvae.decode(latents).sample
 
         # image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.detach().cpu()
         image = torch.clamp(image, -1., 1.)
-        image = (image + 1.) / 2. #* 255
-        # image = image.numpy().astype(np.uint8)
-        image = np.transpose(image, (0, 2, 3, 1))
+        image = (image / 2 + 0.5).clamp(0, 1)
+        image = image.cpu().permute(0, 2, 3, 1).numpy()
+
         print(f'image:{image}')
 
         if output_type == "pil":
