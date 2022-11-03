@@ -94,19 +94,15 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
 
         if isinstance(init_image, PIL.Image.Image):
             init_image = preprocess(init_image)
-        # print(f"LR_image: {init_image}")
 
         height, width = init_image.shape[-2:]
-        generator = torch.Generator(device='cuda')
-        generator.manual_seed(0)
+
         latents = torch.randn(
             (batch_size, self.unet.in_channels // 2, height, width), device='cuda',
             generator=generator,
         )
         latents = latents.to(self.device)
         init_image = init_image.to(device=self.device, dtype=latents.dtype)
-        # print(f'\nencode: {self.vqvae.encode(init_image).latents}')
-
 
         # set timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -119,37 +115,20 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         extra_kwargs = {}
         if accepts_eta:
             extra_kwargs["eta"] = eta
-        # i = 0
+
         for t in self.progress_bar(self.scheduler.timesteps):
-            # print(f'\nt: {t}')
             # concat latents and low resolution image
             latents_input = torch.cat([latents, init_image], dim=1)
             # predict the noise residual
-            # print(f'\nlatents: {latents}')
-            # print(f'\nt: {t}')
-            # print(f'\nc: {init_image}')
             noise_pred = self.unet(latents_input, t).sample
-            # print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
-            # print(f'\nprev_sample: {latents}')
-            # if i==1:
-            #     break
-            # i+=1
-        print(f'\nz0: {latents}')
-        torch.save(latents, 'latents.pt')
-        torch.save(noise_pred, 'noise_pred.pt')
-        # scale and decode the image latents with vae
-        # latents = 1 / 0.18215 * latents
-        # decode the image latents with the VAE
-        image = self.vqvae.decode(latents).sample
 
-        # image = (image / 2 + 0.5).clamp(0, 1)
+        # decode the image latents with the VQVAE
+        image = self.vqvae.decode(latents).sample
         image = torch.clamp(image, -1., 1.)
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.cpu().permute(0, 2, 3, 1).numpy()
-
-        print(f'image:{image}')
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)
