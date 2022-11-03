@@ -132,7 +132,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
             print(f'\nprev_sample: {latents}')
-            # break
+            break
 
         torch.save(latents, 'latents.pt')
         # scale and decode the image latents with vae
