@@ -48,7 +48,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         init_image: Union[torch.FloatTensor, PIL.Image.Image],
         batch_size: Optional[int] = 1,
         num_inference_steps: Optional[int] = 100,
-        eta: Optional[float] = 1.0,
+        eta: Optional[float] = 0.0,
         generator: Optional[torch.Generator] = None,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
@@ -117,7 +117,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         accepts_eta = "eta" in set(inspect.signature(self.scheduler.step).parameters.keys())
         extra_kwargs = {}
         if accepts_eta:
-            extra_kwargs["eta"] = 1
+            extra_kwargs["eta"] = eta
 
         for t in self.progress_bar(self.scheduler.timesteps):
             # concat latents and low resolution image
@@ -127,7 +127,7 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
             # print(f'\nt: {t}')
             # print(f'\nc: {init_image}')
             noise_pred = self.unet(latents_input, t).sample
-            # print(f'\ne_t: {noise_pred}')
+            print(f'\ne_t: {noise_pred}')
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(noise_pred, t, latents, **extra_kwargs).prev_sample
             print(f'prev_sample: {latents}')
