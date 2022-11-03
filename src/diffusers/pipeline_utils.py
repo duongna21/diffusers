@@ -624,8 +624,9 @@ class DiffusionPipeline(ConfigMixin):
         """
         if images.ndim == 3:
             images = images[None, ...]
+        print(f'\nbefore:{images}')
         images = (images * 255).round().astype("uint8")
-        print(f'\nimage:{images}')
+        print(f'\nafter:{images}')
         if images.shape[-1] == 1:
             # special case for grayscale (single channel) images
             pil_images = [Image.fromarray(image.squeeze(), mode="L") for image in images]

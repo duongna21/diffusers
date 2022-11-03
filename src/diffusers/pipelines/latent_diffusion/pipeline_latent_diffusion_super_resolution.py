@@ -148,9 +148,9 @@ class LDMSuperResolutionPipeline(DiffusionPipeline):
         image = image.detach().cpu()
         image = torch.clamp(image, -1., 1.)
         image = (image + 1.) / 2. #* 255
-        image = image.numpy().astype(np.uint8)
+        # image = image.numpy().astype(np.uint8)
         image = np.transpose(image, (0, 2, 3, 1))
-        # print(f'image:{image}')
+        print(f'image:{image}')
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)
