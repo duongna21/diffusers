@@ -401,16 +401,15 @@ def main(args):
                 0, noise_scheduler.config.num_train_timesteps, (bsz,), device=clean_images.device
             ).long()
 
-            # Get the text embedding for conditioning
-            encoder_hidden_states = text_encoder(batch["input_ids"])[0]
-
             # Add noise to the clean images according to the noise magnitude at each timestep
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
             with accelerator.accumulate(model):
+                # Get the text embedding for conditioning
+                encoder_hidden_states = text_encoder(batch["input_ids"])[0]
                 # Predict the noise residual
-                model_output = model(noisy_images, timesteps, encoder_hidden_states).sample
+                model_output = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states).sample
 
                 if args.predict_mode == "eps":
                     loss = F.mse_loss(model_output, noise)  # this could have different weights!
