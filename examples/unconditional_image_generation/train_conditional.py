@@ -279,7 +279,7 @@ def main(args):
     else:
         data_files = {}
         if args.train_data_dir is not None:
-            data_files["train"] = os.path.join(args.train_data_dir, "**")
+            data_files["train"] = [os.path.join(args.train_data_dir, f) for f in os.listdir(args.train_data_dir)[:10000]]
         dataset = load_dataset(
             "imagefolder",
             data_files=data_files,
