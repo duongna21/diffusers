@@ -400,7 +400,7 @@ def main(args):
             ).long()
 
             # Get the text embedding for conditioning
-            encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+            encoder_hidden_states = text_encoder(batch["input_ids"].device)[0]
 
             # Add noise to the clean images according to the noise magnitude at each timestep
             # (this is the forward diffusion process)
