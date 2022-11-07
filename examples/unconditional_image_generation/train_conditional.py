@@ -279,12 +279,10 @@ def main(args):
     else:
         data_files = {}
         if args.train_data_dir is not None:
-            data_files["train"] = [os.path.join(args.train_data_dir, f) for f in os.listdir(args.train_data_dir)[:10000]]
-        dataset = load_dataset(
-            "imagefolder",
-            data_files=data_files,
-            cache_dir=args.cache_dir,
-        )
+            dataset = load_dataset(
+                "imagefolder",
+                data_dir=args.train_data_dir, )
+
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
