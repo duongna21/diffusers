@@ -235,6 +235,8 @@ def main(args):
     # Load models and create wrapper for stable diffusion
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
     text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
+    text_encoder.requires_grad_(False)
+    text_encoder.to(accelerator.device)
     model = UNet2DConditionModel(
         sample_size=args.resolution,
         in_channels=3,
@@ -400,7 +402,7 @@ def main(args):
             ).long()
 
             # Get the text embedding for conditioning
-            encoder_hidden_states = text_encoder(batch["input_ids"].to(clean_images.device))[0]
+            encoder_hidden_states = text_encoder(batch["input_ids"])[0]
 
             # Add noise to the clean images according to the noise magnitude at each timestep
             # (this is the forward diffusion process)
