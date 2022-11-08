@@ -213,10 +213,13 @@ class UNet2DModel(ModelMixin, ConfigMixin):
 
         # 2. pre-process
         skip_sample = sample
+        print(f'\nbefore conv_in {sample.shape}')
         sample = self.conv_in(sample)
+        print(f'\nbefore downblock {sample.shape}')
 
         # 3. down
         down_block_res_samples = (sample,)
+        print(f'{sample.shape}')
         for downsample_block in self.down_blocks:
             if hasattr(downsample_block, "skip_conv"):
                 sample, res_samples, skip_sample = downsample_block(
@@ -224,11 +227,14 @@ class UNet2DModel(ModelMixin, ConfigMixin):
                 )
             else:
                 sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
+            print(f'{sample.shape}')
 
             down_block_res_samples += res_samples
 
         # 4. mid
+        print(f'\nbefore mid {sample.shape}')
         sample = self.mid_block(sample, emb)
+        print(f'\nbefore upblock {sample.shape}')
 
         # 5. up
         skip_sample = None
@@ -240,13 +246,16 @@ class UNet2DModel(ModelMixin, ConfigMixin):
                 sample, skip_sample = upsample_block(sample, res_samples, emb, skip_sample)
             else:
                 sample = upsample_block(sample, res_samples, emb)
+            print(f'{sample.shape}')
 
         # 6. post-process
         # make sure hidden states is in float32
         # when running in half-precision
+        print(f'\nbefore out {sample.shape}')
         sample = self.conv_norm_out(sample.float()).type(sample.dtype)
         sample = self.conv_act(sample)
         sample = self.conv_out(sample)
+        print(f'\nfinal {sample.shape}')
 
         if skip_sample is not None:
             sample += skip_sample
