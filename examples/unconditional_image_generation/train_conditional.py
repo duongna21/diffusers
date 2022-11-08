@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from datasets import load_dataset
-from diffusers import DDPMPipeline, DDPMScheduler, UNet2DModel
+from diffusers import DDPMPipeline, DDPMScheduler, UNet2DConditionModel
 from diffusers.optimization import get_scheduler
 from diffusers.training_utils import EMAModel
 from huggingface_hub import HfFolder, Repository, whoami
@@ -23,6 +23,7 @@ from torchvision.transforms import (
     Resize,
     ToTensor,
 )
+from transformers import CLIPTokenizer, CLIPTextModel
 from tqdm.auto import tqdm
 
 
@@ -229,7 +230,10 @@ def main(args):
         logging_dir=logging_dir,
     )
 
-    model = UNet2DModel(
+    # Load models and create wrapper for stable diffusion
+    tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
+    text_encoder = CLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    unet = UNet2DConditionModel(
         sample_size=args.resolution,
         in_channels=3,
         out_channels=3,
@@ -254,7 +258,7 @@ def main(args):
     )
     noise_scheduler = DDPMScheduler(num_train_timesteps=args.ddpm_num_steps, beta_schedule=args.ddpm_beta_schedule)
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        unet.parameters(),
         lr=args.learning_rate,
         betas=(args.adam_beta1, args.adam_beta2),
         weight_decay=args.adam_weight_decay,
@@ -272,22 +276,57 @@ def main(args):
     )
 
     if args.dataset_name is not None:
+        # Downloading and loading a dataset from the hub.
         dataset = load_dataset(
             args.dataset_name,
             args.dataset_config_name,
             cache_dir=args.cache_dir,
-            split="train",
         )
     else:
-        dataset = load_dataset("imagefolder", data_dir=args.train_data_dir, cache_dir=args.cache_dir, split="train")
+        data_files = {}
+        if args.train_data_dir is not None:
+            data_files["train"] = os.path.join(args.train_data_dir, "**")
+        dataset = load_dataset(
+            "imagefolder",
+            data_files=data_files,
+            cache_dir=args.cache_dir,
+        )
+        # See more about loading custom images at
+        # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
-    def transforms(examples):
-        images = [augmentations(image.convert("RGB")) for image in examples["image"]]
-        return {"input": images}
+        # Preprocessing the datasets.
+        # We need to tokenize inputs and targets.
+        column_names = dataset["train"].column_names
+
+        # 6. Get the column names for input/target.
+        dataset_columns = dataset_name_mapping.get(args.dataset_name, None)
+        if args.image_column is None:
+            image_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+        else:
+            image_column = args.image_column
+            if image_column not in column_names:
+                raise ValueError(
+                    f"--image_column' value '{args.image_column}' needs to be one of: {', '.join(column_names)}"
+                )
+        if args.caption_column is None:
+            caption_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
+        else:
+            caption_column = args.caption_column
+            if caption_column not in column_names:
+                raise ValueError(
+                    f"--caption_column' value '{args.caption_column}' needs to be one of: {', '.join(column_names)}"
+                )
+
+
+    # def preprocess_train(examples):
+    #     inputs = tokenizer(captions, max_length=tokenizer.model_max_length, padding="do_not_pad", truncation=True)
+    #     input_ids = inputs.input_ids
+    #     images = [augmentations(image.convert("RGB")) for image in examples["image"]]
+    #     return {"input": images}
 
     logger.info(f"Dataset size: {len(dataset)}")
 
-    dataset.set_transform(transforms)
+    dataset.set_transform(preprocess_train)
     train_dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
     )
@@ -299,13 +338,13 @@ def main(args):
         num_training_steps=(len(train_dataloader) * args.num_epochs) // args.gradient_accumulation_steps,
     )
 
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
+    unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        unet, optimizer, train_dataloader, lr_scheduler
     )
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
 
-    ema_model = EMAModel(model, inv_gamma=args.ema_inv_gamma, power=args.ema_power, max_value=args.ema_max_decay)
+    ema_model = EMAModel(unet, inv_gamma=args.ema_inv_gamma, power=args.ema_power, max_value=args.ema_max_decay)
 
     # Handle the repository creation
     if accelerator.is_main_process:
@@ -330,7 +369,7 @@ def main(args):
 
     global_step = 0
     for epoch in range(args.num_epochs):
-        model.train()
+        unet.train()
         progress_bar = tqdm(total=num_update_steps_per_epoch, disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
         for step, batch in enumerate(train_dataloader):
@@ -347,9 +386,12 @@ def main(args):
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            with accelerator.accumulate(model):
+            with accelerator.accumulate(unet):
+                # Get the text embedding for conditioning
+                encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+
                 # Predict the noise residual
-                model_output = model(noisy_images, timesteps).sample
+                model_output = unet(noisy_images, timesteps, encoder_hidden_states).sample
 
                 if args.predict_mode == "eps":
                     loss = F.mse_loss(model_output, noise)  # this could have different weights!
@@ -366,11 +408,11 @@ def main(args):
                 accelerator.backward(loss)
 
                 if accelerator.sync_gradients:
-                    accelerator.clip_grad_norm_(model.parameters(), 1.0)
+                    accelerator.clip_grad_norm_(unet.parameters(), 1.0)
                 optimizer.step()
                 lr_scheduler.step()
                 if args.use_ema:
-                    ema_model.step(model)
+                    ema_model.step(unet)
                 optimizer.zero_grad()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
@@ -391,7 +433,7 @@ def main(args):
         if accelerator.is_main_process:
             if epoch % args.save_images_epochs == 0 or epoch == args.num_epochs - 1:
                 pipeline = DDPMPipeline(
-                    unet=accelerator.unwrap_model(ema_model.averaged_model if args.use_ema else model),
+                    unet=accelerator.unwrap_model(ema_model.averaged_model if args.use_ema else unet),
                     scheduler=noise_scheduler,
                 )
 
@@ -412,7 +454,7 @@ def main(args):
                 torch.save(images_processed, f'images_epoch{epoch}.pt')
 
             if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-                # save the model
+                # save the unet
                 pipeline.save_pretrained(args.output_dir)
                 if args.push_to_hub:
                     repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=False)
