@@ -1,9 +1,11 @@
 import argparse
 import math
 import os
+import random
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -23,8 +25,8 @@ from torchvision.transforms import (
     Resize,
     ToTensor,
 )
-from transformers import CLIPTokenizer, CLIPTextModel
 from tqdm.auto import tqdm
+from transformers import CLIPTextModel, CLIPTokenizer
 
 
 logger = get_logger(__name__)
@@ -231,25 +233,28 @@ def main(args):
     )
 
     # Load models and create wrapper for stable diffusion
-    tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
-    text_encoder = CLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
-    unet = UNet2DConditionModel(
+    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+    text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
+    text_encoder.requires_grad_(False)
+    text_encoder.to(accelerator.device)
+    model = UNet2DConditionModel(
         sample_size=args.resolution,
         in_channels=3,
         out_channels=3,
         layers_per_block=2,
         block_out_channels=(128, 128, 256, 256, 512, 512),
+        cross_attention_dim=768,
         down_block_types=(
             "DownBlock2D",
             "DownBlock2D",
             "DownBlock2D",
             "DownBlock2D",
-            "AttnDownBlock2D",
+            "CrossAttnDownBlock2D",
             "DownBlock2D",
         ),
         up_block_types=(
             "UpBlock2D",
-            "AttnUpBlock2D",
+            "CrossAttnUpBlock2D",
             "UpBlock2D",
             "UpBlock2D",
             "UpBlock2D",
@@ -258,23 +263,15 @@ def main(args):
     )
     noise_scheduler = DDPMScheduler(num_train_timesteps=args.ddpm_num_steps, beta_schedule=args.ddpm_beta_schedule)
     optimizer = torch.optim.AdamW(
-        unet.parameters(),
+        model.parameters(),
         lr=args.learning_rate,
         betas=(args.adam_beta1, args.adam_beta2),
         weight_decay=args.adam_weight_decay,
         eps=args.adam_epsilon,
     )
 
-    augmentations = Compose(
-        [
-            Resize((args.resolution, args.resolution * 7), interpolation=InterpolationMode.BILINEAR),
-            # CenterCrop(args.resolution),
-            # RandomHorizontalFlip(),
-            ToTensor(),
-            Normalize([0.5], [0.5]),
-        ]
-    )
-
+    # In distributed training, the load_dataset function guarantees that only one local process can concurrently
+    # download the dataset.
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         dataset = load_dataset(
@@ -285,50 +282,73 @@ def main(args):
     else:
         data_files = {}
         if args.train_data_dir is not None:
-            data_files["train"] = os.path.join(args.train_data_dir, "**")
-        dataset = load_dataset(
-            "imagefolder",
-            data_files=data_files,
-            cache_dir=args.cache_dir,
-        )
+            dataset = load_dataset(
+                "imagefolder",
+                data_dir=args.train_data_dir, )
+
         # See more about loading custom images at
         # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
 
-        # Preprocessing the datasets.
-        # We need to tokenize inputs and targets.
-        column_names = dataset["train"].column_names
+    # Preprocessing the datasets.
+    # We need to tokenize inputs and targets.
+    column_names = dataset["train"].column_names
 
-        # 6. Get the column names for input/target.
-        dataset_columns = dataset_name_mapping.get(args.dataset_name, None)
-        if args.image_column is None:
-            image_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
-        else:
-            image_column = args.image_column
-            if image_column not in column_names:
+    # 6. Get the column names for input/target.
+    image_column = "image"
+    caption_column = "text"
+
+    # Preprocessing the datasets.
+    # We need to tokenize input captions and transform the images.
+    def tokenize_captions(examples, is_train=True):
+        captions = []
+        for caption in examples[caption_column]:
+            if isinstance(caption, str):
+                captions.append(caption)
+            elif isinstance(caption, (list, np.ndarray)):
+                # take a random caption if there are multiple
+                captions.append(random.choice(caption) if is_train else caption[0])
+            else:
                 raise ValueError(
-                    f"--image_column' value '{args.image_column}' needs to be one of: {', '.join(column_names)}"
+                    f"Caption column `{caption_column}` should contain either strings or lists of strings."
                 )
-        if args.caption_column is None:
-            caption_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
-        else:
-            caption_column = args.caption_column
-            if caption_column not in column_names:
-                raise ValueError(
-                    f"--caption_column' value '{args.caption_column}' needs to be one of: {', '.join(column_names)}"
-                )
+        inputs = tokenizer(captions, max_length=tokenizer.model_max_length, padding="do_not_pad", truncation=True)
+        input_ids = inputs.input_ids
+        return input_ids
 
+    train_transforms = Compose(
+        [
+            Resize((args.resolution, args.resolution * 7), interpolation=InterpolationMode.BILINEAR),
+            ToTensor(),
+            Normalize([0.5], [0.5]),
+        ]
+    )
 
-    # def preprocess_train(examples):
-    #     inputs = tokenizer(captions, max_length=tokenizer.model_max_length, padding="do_not_pad", truncation=True)
-    #     input_ids = inputs.input_ids
-    #     images = [augmentations(image.convert("RGB")) for image in examples["image"]]
-    #     return {"input": images}
+    def preprocess_train(examples):
+        images = [image.convert("RGB") for image in examples[image_column]]
+        examples["pixel_values"] = [train_transforms(image) for image in images]
+        examples["input_ids"] = tokenize_captions(examples)
 
-    logger.info(f"Dataset size: {len(dataset)}")
+        return examples
 
-    dataset.set_transform(preprocess_train)
+    with accelerator.main_process_first():
+        # if args.max_train_samples is not None:
+        #     dataset["train"] = dataset["train"].shuffle(seed=args.seed).select(range(args.max_train_samples))
+        # Set the training transforms
+        train_dataset = dataset["train"].with_transform(preprocess_train)
+
+    def collate_fn(examples):
+        pixel_values = torch.stack([example["pixel_values"] for example in examples])
+        pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
+        input_ids = [example["input_ids"] for example in examples]
+        padded_tokens = tokenizer.pad({"input_ids": input_ids}, padding=True, return_tensors="pt")
+        return {
+            "pixel_values": pixel_values,
+            "input_ids": padded_tokens.input_ids,
+            "attention_mask": padded_tokens.attention_mask,
+        }
+
     train_dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=args.train_batch_size, shuffle=True, num_workers=args.dataloader_num_workers
+        train_dataset, shuffle=True, collate_fn=collate_fn, batch_size=args.train_batch_size
     )
 
     lr_scheduler = get_scheduler(
@@ -338,13 +358,13 @@ def main(args):
         num_training_steps=(len(train_dataloader) * args.num_epochs) // args.gradient_accumulation_steps,
     )
 
-    unet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        unet, optimizer, train_dataloader, lr_scheduler
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, lr_scheduler
     )
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
 
-    ema_model = EMAModel(unet, inv_gamma=args.ema_inv_gamma, power=args.ema_power, max_value=args.ema_max_decay)
+    ema_model = EMAModel(model, inv_gamma=args.ema_inv_gamma, power=args.ema_power, max_value=args.ema_max_decay)
 
     # Handle the repository creation
     if accelerator.is_main_process:
@@ -369,11 +389,11 @@ def main(args):
 
     global_step = 0
     for epoch in range(args.num_epochs):
-        unet.train()
+        model.train()
         progress_bar = tqdm(total=num_update_steps_per_epoch, disable=not accelerator.is_local_main_process)
         progress_bar.set_description(f"Epoch {epoch}")
         for step, batch in enumerate(train_dataloader):
-            clean_images = batch["input"]
+            clean_images = batch["pixel_values"]
             # Sample noise that we'll add to the images
             noise = torch.randn(clean_images.shape).to(clean_images.device)
             bsz = clean_images.shape[0]
@@ -386,12 +406,11 @@ def main(args):
             # (this is the forward diffusion process)
             noisy_images = noise_scheduler.add_noise(clean_images, noise, timesteps)
 
-            with accelerator.accumulate(unet):
+            with accelerator.accumulate(model):
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
-
                 # Predict the noise residual
-                model_output = unet(noisy_images, timesteps, encoder_hidden_states).sample
+                model_output = model(noisy_images, timesteps, encoder_hidden_states=encoder_hidden_states).sample
 
                 if args.predict_mode == "eps":
                     loss = F.mse_loss(model_output, noise)  # this could have different weights!
@@ -408,11 +427,11 @@ def main(args):
                 accelerator.backward(loss)
 
                 if accelerator.sync_gradients:
-                    accelerator.clip_grad_norm_(unet.parameters(), 1.0)
+                    accelerator.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 lr_scheduler.step()
                 if args.use_ema:
-                    ema_model.step(unet)
+                    ema_model.step(model)
                 optimizer.zero_grad()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
@@ -433,7 +452,7 @@ def main(args):
         if accelerator.is_main_process:
             if epoch % args.save_images_epochs == 0 or epoch == args.num_epochs - 1:
                 pipeline = DDPMPipeline(
-                    unet=accelerator.unwrap_model(ema_model.averaged_model if args.use_ema else unet),
+                    unet=accelerator.unwrap_model(ema_model.averaged_model if args.use_ema else model),
                     scheduler=noise_scheduler,
                 )
 
@@ -454,7 +473,7 @@ def main(args):
                 torch.save(images_processed, f'images_epoch{epoch}.pt')
 
             if epoch % args.save_model_epochs == 0 or epoch == args.num_epochs - 1:
-                # save the unet
+                # save the model
                 pipeline.save_pretrained(args.output_dir)
                 if args.push_to_hub:
                     repo.push_to_hub(commit_message=f"Epoch {epoch}", blocking=False)
