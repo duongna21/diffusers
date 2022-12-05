@@ -297,6 +297,7 @@ class StableDiffusionPipeline(DiffusionPipeline):
             attention_mask = None
 
         if clip_penultimate:
+            print("Use CLIP penultimate layer instead of last layer.")
             text_embeddings = self.text_encoder.text_model.final_layer_norm(
                 self.text_encoder(text_input_ids.to(self.device), output_hidden_states=True)["hidden_states"][-2]
             )[0]
