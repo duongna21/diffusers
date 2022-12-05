@@ -253,7 +253,9 @@ class StableDiffusionPipeline(DiffusionPipeline):
                 return torch.device(module._hf_hook.execution_device)
         return self.device
 
-    def _encode_prompt(self, prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt):
+    def _encode_prompt(
+        self, prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt, clip_penultimate
+    ):
         r"""
         Encodes the prompt into text encoder hidden states.
 
@@ -294,11 +296,15 @@ class StableDiffusionPipeline(DiffusionPipeline):
         else:
             attention_mask = None
 
-        text_embeddings = self.text_encoder(
-            text_input_ids.to(device),
-            attention_mask=attention_mask,
-        )
-        text_embeddings = text_embeddings[0]
+        if clip_penultimate:
+            text_embeddings = self.text_encoder.text_model.final_layer_norm(
+                self.text_encoder(text_input_ids.to(self.device), output_hidden_states=True)["hidden_states"][-2]
+            )[0]
+        else:
+            text_embeddings = self.text_encoder(
+                text_input_ids.to(device),
+                attention_mask=attention_mask,
+            )[0]
 
         # duplicate text embeddings for each generation per prompt, using mps friendly method
         bs_embed, seq_len, _ = text_embeddings.shape
@@ -436,6 +442,7 @@ class StableDiffusionPipeline(DiffusionPipeline):
         negative_prompt: Optional[Union[str, List[str]]] = None,
         num_images_per_prompt: Optional[int] = 1,
         eta: float = 0.0,
+        clip_penultimate=True,
         generator: Optional[torch.Generator] = None,
         latents: Optional[torch.FloatTensor] = None,
         output_type: Optional[str] = "pil",
@@ -514,7 +521,7 @@ class StableDiffusionPipeline(DiffusionPipeline):
 
         # 3. Encode input prompt
         text_embeddings = self._encode_prompt(
-            prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt
+            prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt, clip_penultimate
         )
 
         # 4. Prepare timesteps
