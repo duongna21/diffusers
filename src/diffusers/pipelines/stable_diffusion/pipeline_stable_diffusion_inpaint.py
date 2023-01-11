@@ -718,9 +718,6 @@ class StableDiffusionInpaintPipeline(DiffusionPipeline):
 
                 # concat latents, mask, masked_image_latents in the channel dimension
                 latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-                print(f"latent_model_input: {latent_model_input.shape}")
-                print(f"mask: {mask.shape}")
-                print(f"masked_image_latents: {masked_image_latents.shape}")
                 latent_model_input = torch.cat([latent_model_input, mask, masked_image_latents], dim=1)
 
                 # predict the noise residual
