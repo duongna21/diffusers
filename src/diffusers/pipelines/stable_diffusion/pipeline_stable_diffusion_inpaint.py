@@ -630,6 +630,7 @@ class StableDiffusionInpaintPipeline(DiffusionPipeline):
         )
 
         # 4. Preprocess mask and image
+        print(f"image, mask_image:\n{image}\n\n{mask_image}")
         if isinstance(image, PIL.Image.Image) and isinstance(mask_image, PIL.Image.Image):
             mask, masked_image = prepare_mask_and_masked_image(image, mask_image)
         else:
