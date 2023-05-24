@@ -458,6 +458,7 @@ class ControlNetModel(ModelMixin, ConfigMixin):
         attention_mask: Optional[torch.Tensor] = None,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         guess_mode: bool = False,
+        prompt_mode: bool = False,
         return_dict: bool = True,
     ) -> Union[ControlNetOutput, Tuple]:
         # check channel order
@@ -558,10 +559,10 @@ class ControlNetModel(ModelMixin, ConfigMixin):
         mid_block_res_sample = self.controlnet_mid_block(sample)
 
         # 6. scaling
-        if guess_mode and not self.config.global_pool_conditions:
+        if (guess_mode or prompt_mode) and not self.config.global_pool_conditions:
             scales = torch.logspace(-1, 0, len(down_block_res_samples) + 1, device=sample.device)  # 0.1 to 1.0
-
-            scales = scales * conditioning_scale
+            if guess_mode:
+                scales = scales * conditioning_scale
             down_block_res_samples = [sample * scale for sample, scale in zip(down_block_res_samples, scales)]
             mid_block_res_sample = mid_block_res_sample * scales[-1]  # last one
         else:
