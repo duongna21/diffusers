@@ -1207,8 +1207,11 @@ def download_from_original_stable_diffusion_ckpt(
             raise ValueError(BACKENDS_MAPPING["safetensors"][1])
 
         from safetensors.torch import load_file as safe_load
-
-        checkpoint = safe_load(checkpoint_path, device="cpu")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            checkpoint = safe_load(checkpoint_path, device=device)
+        else:
+            checkpoint = safe_load(checkpoint_path, device=device)
     else:
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
