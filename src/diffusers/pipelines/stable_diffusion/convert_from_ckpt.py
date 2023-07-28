@@ -1183,19 +1183,18 @@ def download_from_original_stable_diffusion_ckpt(
 
     from omegaconf import OmegaConf
 
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
     if from_safetensors:
         if not is_safetensors_available():
             raise ValueError(BACKENDS_MAPPING["safetensors"][1])
 
         from safetensors.torch import load_file as safe_load
 
-        checkpoint = safe_load(checkpoint_path, device="cpu")
+        checkpoint = safe_load(checkpoint_path, device=device)
     else:
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            checkpoint = torch.load(checkpoint_path, map_location=device)
-        else:
-            checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device)
 
     # Sometimes models don't have the global_step item
     if "global_step" in checkpoint:
@@ -1350,6 +1349,7 @@ def download_from_original_stable_diffusion_ckpt(
 
     for param_name, param in converted_unet_checkpoint.items():
         set_module_tensor_to_device(unet, param_name, "cpu", value=param)
+    unet.to(device)
 
     # Convert the VAE model.
     if vae_path is None:
