@@ -1361,7 +1361,8 @@ def download_from_original_stable_diffusion_ckpt(
 
     ctx = init_empty_weights if is_accelerate_available() else nullcontext
     with ctx():
-        unet = UNet2DConditionModel(**unet_config).to(device)
+        unet = UNet2DConditionModel(**unet_config)
+        unet.to(device)
 
     if is_accelerate_available():
         for param_name, param in converted_unet_checkpoint.items():
