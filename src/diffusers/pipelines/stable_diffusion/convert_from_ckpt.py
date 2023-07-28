@@ -1077,7 +1077,8 @@ def convert_controlnet_checkpoint(
 
     return controlnet_model
 
-
+from memory_profiler import profile
+@profile
 def download_from_original_stable_diffusion_ckpt(
     checkpoint_path: str,
     original_config_file: str = None,
@@ -1374,6 +1375,7 @@ def download_from_original_stable_diffusion_ckpt(
             set_module_tensor_to_device(vae, param_name, "cpu", value=param)
     else:
         vae = AutoencoderKL.from_pretrained(vae_path)
+    vae.to(device)
 
     if model_type == "FrozenOpenCLIPEmbedder":
         config_name = "stabilityai/stable-diffusion-2"
@@ -1511,6 +1513,7 @@ def download_from_original_stable_diffusion_ckpt(
         if model_type == "SDXL":
             tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
             text_encoder = convert_ldm_clip_checkpoint(checkpoint, local_files_only=local_files_only)
+            text_encoder.to(device)
             tokenizer_2 = CLIPTokenizer.from_pretrained("laion/CLIP-ViT-bigG-14-laion2B-39B-b160k", pad_token="!")
 
             config_name = "laion/CLIP-ViT-bigG-14-laion2B-39B-b160k"
@@ -1518,6 +1521,7 @@ def download_from_original_stable_diffusion_ckpt(
             text_encoder_2 = convert_open_clip_checkpoint(
                 checkpoint, config_name, prefix="conditioner.embedders.1.model.", has_projection=True, **config_kwargs
             )
+            text_encoder_2.to(device)
 
             pipe = StableDiffusionXLPipeline(
                 vae=vae,
