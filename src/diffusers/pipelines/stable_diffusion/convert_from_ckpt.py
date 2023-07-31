@@ -1077,8 +1077,6 @@ def convert_controlnet_checkpoint(
 
     return controlnet_model
 
-from memory_profiler import profile
-@profile
 def download_from_original_stable_diffusion_ckpt(
     checkpoint_path: str,
     original_config_file: str = None,
