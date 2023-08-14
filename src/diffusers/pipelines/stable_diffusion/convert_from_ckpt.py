@@ -621,6 +621,8 @@ def convert_ldm_unet_checkpoint(
     # save unet_mapper
     import json
     print('unet_mapper: ', unet_mapper)
+    # add lora_unet_ to every key and value
+    unet_mapper = {f'lora_unet_{k}': f'lora_unet_{v}' for k, v in unet_mapper.items()}
     with open("unet_mapper.json", "w") as fp:
         json.dump(unet_mapper, fp)
     return new_checkpoint
