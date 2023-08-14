@@ -166,7 +166,7 @@ def renew_vae_attention_paths(old_list, n_shave_prefix_segments=0):
 
 
 def assign_to_checkpoint(
-    paths, checkpoint, old_checkpoint, attention_paths_to_split=None, additional_replacements=None, config=None
+    paths, checkpoint, old_checkpoint, attention_paths_to_split=None, additional_replacements=None, config=None, mapper={}
 ):
     """
     This does the final conversion step: take locally converted weights and apply a global renaming to them. It splits
@@ -218,7 +218,7 @@ def assign_to_checkpoint(
             checkpoint[new_path] = old_checkpoint[path["old"]][:, :, 0, 0]
         else:
             checkpoint[new_path] = old_checkpoint[path["old"]]
-
+        mapper[path["old"]] = new_path
 
 def conv_attn_to_linear(checkpoint):
     keys = list(checkpoint.keys())
@@ -470,7 +470,7 @@ def convert_ldm_unet_checkpoint(
         layer_id: [key for key in unet_state_dict if f"output_blocks.{layer_id}" in key]
         for layer_id in range(num_output_blocks)
     }
-
+    unet_mapper = {}
     for i in range(1, num_input_blocks):
         block_id = (i - 1) // (config["layers_per_block"] + 1)
         layer_in_block_id = (i - 1) % (config["layers_per_block"] + 1)
@@ -484,21 +484,22 @@ def convert_ldm_unet_checkpoint(
             new_checkpoint[f"down_blocks.{block_id}.downsamplers.0.conv.weight"] = unet_state_dict.pop(
                 f"input_blocks.{i}.0.op.weight"
             )
+            unet_mapper[f"input_blocks.{i}.0.op.weight"] = f"down_blocks.{block_id}.downsamplers.0.conv.weight"
             new_checkpoint[f"down_blocks.{block_id}.downsamplers.0.conv.bias"] = unet_state_dict.pop(
                 f"input_blocks.{i}.0.op.bias"
             )
-
+            unet_mapper[f"input_blocks.{i}.0.op.bias"] = f"down_blocks.{block_id}.downsamplers.0.conv.bias"
         paths = renew_resnet_paths(resnets)
         meta_path = {"old": f"input_blocks.{i}.0", "new": f"down_blocks.{block_id}.resnets.{layer_in_block_id}"}
         assign_to_checkpoint(
-            paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config
+            paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config, mapper=unet_mapper
         )
 
         if len(attentions):
             paths = renew_attention_paths(attentions)
             meta_path = {"old": f"input_blocks.{i}.1", "new": f"down_blocks.{block_id}.attentions.{layer_in_block_id}"}
             assign_to_checkpoint(
-                paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config
+                paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config, mapper=unet_mapper
             )
 
     resnet_0 = middle_blocks[0]
@@ -506,15 +507,15 @@ def convert_ldm_unet_checkpoint(
     resnet_1 = middle_blocks[2]
 
     resnet_0_paths = renew_resnet_paths(resnet_0)
-    assign_to_checkpoint(resnet_0_paths, new_checkpoint, unet_state_dict, config=config)
+    assign_to_checkpoint(resnet_0_paths, new_checkpoint, unet_state_dict, config=config, mapper=unet_mapper)
 
     resnet_1_paths = renew_resnet_paths(resnet_1)
-    assign_to_checkpoint(resnet_1_paths, new_checkpoint, unet_state_dict, config=config)
+    assign_to_checkpoint(resnet_1_paths, new_checkpoint, unet_state_dict, config=config, mapper=unet_mapper)
 
     attentions_paths = renew_attention_paths(attentions)
     meta_path = {"old": "middle_block.1", "new": "mid_block.attentions.0"}
     assign_to_checkpoint(
-        attentions_paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config
+        attentions_paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config, mapper=unet_mapper
     )
 
     for i in range(num_output_blocks):
@@ -539,7 +540,7 @@ def convert_ldm_unet_checkpoint(
 
             meta_path = {"old": f"output_blocks.{i}.0", "new": f"up_blocks.{block_id}.resnets.{layer_in_block_id}"}
             assign_to_checkpoint(
-                paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config
+                paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config, mapper=unet_mapper
             )
 
             output_block_list = {k: sorted(v) for k, v in output_block_list.items()}
@@ -548,9 +549,11 @@ def convert_ldm_unet_checkpoint(
                 new_checkpoint[f"up_blocks.{block_id}.upsamplers.0.conv.weight"] = unet_state_dict[
                     f"output_blocks.{i}.{index}.conv.weight"
                 ]
+                unet_mapper[f"output_blocks.{i}.{index}.conv.weight"] = f"up_blocks.{block_id}.upsamplers.0.conv.weight"
                 new_checkpoint[f"up_blocks.{block_id}.upsamplers.0.conv.bias"] = unet_state_dict[
                     f"output_blocks.{i}.{index}.conv.bias"
                 ]
+                unet_mapper[f"output_blocks.{i}.{index}.conv.bias"] = f"up_blocks.{block_id}.upsamplers.0.conv.bias"
 
                 # Clear attentions as they have been attributed above.
                 if len(attentions) == 2:
@@ -563,7 +566,7 @@ def convert_ldm_unet_checkpoint(
                     "new": f"up_blocks.{block_id}.attentions.{layer_in_block_id}",
                 }
                 assign_to_checkpoint(
-                    paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config
+                    paths, new_checkpoint, unet_state_dict, additional_replacements=[meta_path], config=config, mapper=unet_mapper
                 )
         else:
             resnet_0_paths = renew_resnet_paths(output_block_layers, n_shave_prefix_segments=1)
@@ -572,6 +575,7 @@ def convert_ldm_unet_checkpoint(
                 new_path = ".".join(["up_blocks", str(block_id), "resnets", str(layer_in_block_id), path["new"]])
 
                 new_checkpoint[new_path] = unet_state_dict[old_path]
+                unet_mapper[old_path] = new_path
 
     if controlnet:
         # conditioning embedding
@@ -614,7 +618,9 @@ def convert_ldm_unet_checkpoint(
         # mid block
         new_checkpoint["controlnet_mid_block.weight"] = unet_state_dict.pop("middle_block_out.0.weight")
         new_checkpoint["controlnet_mid_block.bias"] = unet_state_dict.pop("middle_block_out.0.bias")
-
+    # save unet_mapper
+    with open("unet_mapper.json", "w") as fp:
+        json.dump(unet_mapper, fp)
     return new_checkpoint
 
 
