@@ -619,6 +619,7 @@ def convert_ldm_unet_checkpoint(
         new_checkpoint["controlnet_mid_block.weight"] = unet_state_dict.pop("middle_block_out.0.weight")
         new_checkpoint["controlnet_mid_block.bias"] = unet_state_dict.pop("middle_block_out.0.bias")
     # save unet_mapper
+    import json
     with open("unet_mapper.json", "w") as fp:
         json.dump(unet_mapper, fp)
     return new_checkpoint
