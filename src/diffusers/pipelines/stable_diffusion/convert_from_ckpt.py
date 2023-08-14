@@ -621,7 +621,7 @@ def convert_ldm_unet_checkpoint(
     # save unet_mapper
     import json
     # add lora_unet_ to every key and value and remove .weight or .bias at the end
-    unet_mapper = {f'lora_unet_{k.replace(".weight", "").replace(".bias", "")}': f'lora_unet_{v.replace(".weight", "").replace(".bias", "")}' for k, v in unet_mapper.items()}
+    unet_mapper = {f'lora_unet_{k.replace(".weight", "").replace(".bias", "").replace(".", "_")}': f'lora_unet_{v.replace(".weight", "").replace(".bias", "").replace(".", "_")}' for k, v in unet_mapper.items()}
     with open("unet_mapper.json", "w") as fp:
         fp.write(json.dumps(unet_mapper, indent=4))
     return new_checkpoint
