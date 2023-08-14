@@ -620,11 +620,10 @@ def convert_ldm_unet_checkpoint(
         new_checkpoint["controlnet_mid_block.bias"] = unet_state_dict.pop("middle_block_out.0.bias")
     # save unet_mapper
     import json
-    print('unet_mapper: ', unet_mapper)
     # add lora_unet_ to every key and value and remove .weight or .bias at the end
     unet_mapper = {f'lora_unet_{k.replace(".weight", "").replace(".bias", "")}': f'lora_unet_{v.replace(".weight", "").replace(".bias", "")}' for k, v in unet_mapper.items()}
     with open("unet_mapper.json", "w") as fp:
-        json.dump(unet_mapper, fp)
+        fp.write(json.dumps(unet_mapper, indent=4))
     return new_checkpoint
 
 
